@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}My Profile — MailFlow{% endblock %}
+{% block content %}
+<div class="page-title">My Profile</div>
+<div class="page-subtitle">Manage your account settings and security</div>
+
+<div class="row g-4">
+    <div class="col-md-5">
+        <!-- Profile Info -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-person me-2"></i>Profile Info</div>
+            <div class="card-body p-4">
+                <form method="POST" action="/profile/update-info">
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="name" class="form-control" value="{{ user.name }}" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" value="{{ user.email }}" disabled style="opacity:0.6">
+                        <small style="color:#64748b">Email cannot be changed at this time</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check me-1"></i>Save Name</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Account Info -->
+        <div class="card">
+            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Account Info</div>
+            <div class="card-body p-4">
+                <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b">Plan</span>
+                        <span class="badge rounded-pill px-3 py-1" style="background:rgba(99,102,241,0.15);color:#6366f1">{{ user.plan|upper }}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b">Joined</span>
+                        <span>{{ user.created_at.strftime('%d %b %Y') }}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b">Last Login</span>
+                        <span>{{ user.last_login.strftime('%d %b %Y %H:%M') if user.last_login else '—' }}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b">Login Type</span>
+                        <span>{{ 'Google OAuth' if user.google_id else 'Email / Password' }}</span>
+                    </div>
+                    {% if user.is_admin %}
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b">Role</span>
+                        <span class="badge rounded-pill px-3 py-1" style="background:rgba(239,68,68,0.15);color:#ef4444">Admin</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <!-- Change Password -->
+        <div class="card">
+            <div class="card-header"><i class="bi bi-lock me-2"></i>Change Password</div>
+            <div class="card-body p-4">
+                {% if user.google_id and not user.password_hash %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Your account is connected via Google — password can only be changed through your Google account.
+                </div>
+                {% else %}
+                <form method="POST" action="/profile/change-password">
+                    <div class="mb-3">
+                        <label class="form-label">Current Password</label>
+                        <input type="password" name="current_password" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        <input type="password" name="new_password" class="form-control" placeholder="Min 8 characters" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-lock me-1"></i>Change Password</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

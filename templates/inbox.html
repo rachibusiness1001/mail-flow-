@@ -1,0 +1,837 @@
+{% extends 'base.html' %}
+{% block title %}Inbox — MailFlow{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <div class="page-title">
+            Inbox
+            {% if unread_count > 0 %}
+            <span class="badge rounded-pill ms-2" style="background:#6366f1;font-size:13px">{{ unread_count }}</span>
+            {% endif %}
+        </div>
+        <div class="page-subtitle">Campaign replies — organized by tags</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button onclick="fetchNow()" class="btn btn-sm btn-primary px-3 shadow-sm" id="fetchBtn" style="border-radius: 8px;">
+            <i class="bi bi-arrow-clockwise me-1"></i>Fetch Replies
+        </button>
+        <a href="/inbox/clear-non-leads" class="btn btn-sm btn-outline-warning px-3" style="border-radius: 8px;" onclick="return confirm('Remove all non-campaign emails from inbox?')">
+            <i class="bi bi-filter me-1"></i>Clean Inbox
+        </a>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary px-3 dropdown-toggle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 8px; border-color: #2d3148; background: #161926; color: #cbd5e1;">
+                <i class="bi bi-three-dots me-1"></i>More Actions
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; padding: 8px;">
+                <li><button class="dropdown-item text-light" style="border-radius: 6px; padding: 6px 12px;" onclick="setView('thread')" id="btn-thread"><i class="bi bi-layout-split me-2 text-primary"></i>Thread View</button></li>
+                <li><button class="dropdown-item text-light" style="border-radius: 6px; padding: 6px 12px;" onclick="setView('kanban')" id="btn-kanban"><i class="bi bi-kanban me-2 text-secondary"></i>Kanban View</button></li>
+                <li><hr class="dropdown-divider" style="border-color: #2d3148;"></li>
+                <li><button class="dropdown-item text-light" style="border-radius: 6px; padding: 6px 12px;" onclick="document.getElementById('addTagModal').style.display='flex'"><i class="bi bi-tag me-2 text-info"></i>New Tag</button></li>
+                <li><a class="dropdown-item text-light" style="border-radius: 6px; padding: 6px 12px;" href="/inbox/mark-all-read"><i class="bi bi-check-all me-2 text-success"></i>Mark All Read</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card" style="padding:16px 20px; cursor:pointer; background:#181a24; border:1px solid #2d3148; border-left:4px solid #22c55e; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s;" onclick="filterByCategory('interested')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+            <div class="stat-label" style="font-size:13px; color:#94a3b8; font-weight:500; text-transform:uppercase; letter-spacing:0.5px;">Interested</div>
+            <div class="stat-number" style="font-size:28px; color:#f8fafc; font-weight:700; margin-top:4px;">{{ interested }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="padding:16px 20px; cursor:pointer; background:#181a24; border:1px solid #2d3148; border-left:4px solid #ef4444; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s;" onclick="filterByCategory('not_interested')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+            <div class="stat-label" style="font-size:13px; color:#94a3b8; font-weight:500; text-transform:uppercase; letter-spacing:0.5px;">Not Interested</div>
+            <div class="stat-number" style="font-size:28px; color:#f8fafc; font-weight:700; margin-top:4px;">{{ not_interested }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="padding:16px 20px; cursor:pointer; background:#181a24; border:1px solid #2d3148; border-left:4px solid #eab308; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s;" onclick="filterByCategory('ooo')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+            <div class="stat-label" style="font-size:13px; color:#94a3b8; font-weight:500; text-transform:uppercase; letter-spacing:0.5px;">Out of Office</div>
+            <div class="stat-number" style="font-size:28px; color:#f8fafc; font-weight:700; margin-top:4px;">{{ ooo }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="padding:16px 20px; background:#181a24; border:1px solid #2d3148; border-left:4px solid #3b82f6; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            <div class="stat-label" style="font-size:13px; color:#94a3b8; font-weight:500; text-transform:uppercase; letter-spacing:0.5px;">Unread</div>
+            <div class="stat-number" style="font-size:28px; color:#f8fafc; font-weight:700; margin-top:4px;">{{ unread_count }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── THREAD VIEW ─── -->
+<div id="view-thread" style="display:flex;gap:0;height:calc(100vh - 300px);min-height:500px;background:#181a24;border:1px solid #2d3148;border-radius:12px;overflow:hidden;box-shadow: 0 8px 24px rgba(0,0,0,0.15)">
+
+    <!-- LEFT — Reply List -->
+    <div style="width:320px;flex-shrink:0;border-right:1px solid #2d3148;display:flex;flex-direction:column;background:#11131a">
+        <!-- Search + Filter -->
+        <div style="padding:10px;border-bottom:1px solid #2d3148;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:6px">
+                <input type="text" id="slSearch" class="form-control form-control-sm"
+                       placeholder="Search..." oninput="filterList()"
+                       style="background:#0f1117;border:1px solid #2d3148;color:#e2e8f0">
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearSearch()"><i class="bi bi-x"></i></button>
+            </div>
+            <select id="slCampaign" class="form-select form-select-sm" onchange="filterList()"
+                    style="background:#0f1117;border:1px solid #2d3148;color:#e2e8f0">
+                <option value="">All Campaigns</option>
+                {% for c in campaigns %}
+                <option value="{{ c.id }}" {% if selected_campaign_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <!-- Tag filter pills -->
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <button onclick="filterByTag('')" id="pill-all"
+                        class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 12px;border-radius:999px">All</button>
+                {% for tag in tags[:3] %}
+                <button onclick="filterByTag('{{ tag.id }}')" id="pill-{{ tag.id }}"
+                        class="btn btn-sm btn-outline-secondary"
+                        style="font-size:11px;padding:4px 12px;border-radius:999px;border:1px solid {{ tag.color }};color:{{ tag.color }};background:{{ tag.color }}1a">
+                    {{ tag.name }}
+                </button>
+                {% endfor %}
+                {% if tags|length > 3 %}
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:11px;padding:4px 12px;border-radius:999px;border:1px solid #2d3148;color:#94a3b8;background:#161926">
+                        + {{ tags|length - 3 }} More
+                    </button>
+                    <ul class="dropdown-menu shadow" style="background:#1a1d27; border:1px solid #2d3148; border-radius:12px; font-size:12px">
+                        {% for tag in tags[3:] %}
+                        <li><button class="dropdown-item text-light" onclick="filterByTag('{{ tag.id }}')" id="pill-{{ tag.id }}" style="padding:6px 16px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ tag.color }};margin-right:8px"></span>{{ tag.name }}</button></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div id="bulkToolbar" style="padding:10px 16px; border-bottom:1px solid #2d3148; background:#11131a; display:flex; align-items:center; gap:10px;">
+            <input type="checkbox" id="masterCheckbox" onchange="toggleAllCheckboxes()" style="cursor:pointer; width:14px; height:14px;">
+            <div id="bulkButtons" style="display:none; gap:6px; flex:1; align-items:center;">
+                <button class="btn btn-sm btn-outline-secondary" onclick="bulkAction('read')" style="font-size:11px; padding:2px 8px; border-color:#2d3148; color:#cbd5e1;"><i class="bi bi-envelope-open me-1"></i>Read</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="bulkAction('delete')" style="font-size:11px; padding:2px 8px;"><i class="bi bi-trash me-1"></i>Delete</button>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" style="font-size:11px; padding:2px 8px; border-color:#2d3148; color:#cbd5e1;"><i class="bi bi-tag me-1"></i>Tag</button>
+                    <ul class="dropdown-menu shadow" style="background:#1a1d27; border:1px solid #2d3148; font-size:12px;">
+                        <li><button class="dropdown-item text-light" onclick="bulkAction('tag', null)">None</button></li>
+                        {% for tag in tags %}
+                        <li><button class="dropdown-item text-light" onclick="bulkAction('tag', {{ tag.id }})">{{ tag.name }}</button></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-warning dropdown-toggle" type="button" data-bs-toggle="dropdown" style="font-size:11px; padding:2px 8px; border-color:#2d3148;"><i class="bi bi-clock me-1"></i>Snooze</button>
+                    <ul class="dropdown-menu shadow" style="background:#1a1d27; border:1px solid #2d3148; font-size:12px;">
+                        <li><button class="dropdown-item text-light" onclick="bulkAction('snooze', 1)">Tomorrow</button></li>
+                        <li><button class="dropdown-item text-light" onclick="bulkAction('snooze', 3)">In 3 Days</button></li>
+                        <li><button class="dropdown-item text-light" onclick="bulkAction('snooze', 7)">Next Week</button></li>
+                        <li><hr class="dropdown-divider" style="border-color:#2d3148;"></li>
+                        <li><button class="dropdown-item text-danger" onclick="bulkAction('snooze', null)">Remove Snooze</button></li>
+                    </ul>
+                </div>
+                <span id="bulkCount" style="font-size:11px; color:#94a3b8; margin-left:auto;"></span>
+            </div>
+        </div>
+
+        <!-- List -->
+        <div id="replyList" style="flex:1;overflow-y:auto;background:#11131a">
+            {% if replies %}
+                {% for reply in replies %}
+                <div class="reply-list-item"
+                     data-id="{{ reply.id }}"
+                     data-from="{{ reply.from_email }}"
+                     data-subject="{{ reply.subject or '' }}"
+                     data-campaign="{{ reply.lead.campaign_id if reply.lead else '' }}"
+                     data-tag="{{ reply.tag_id or '' }}"
+                     data-category="{{ reply.category }}"
+                     onclick="openThread({{ reply.id }})"
+                     style="padding:16px;border-bottom:1px solid #2d3148;cursor:pointer;transition:all 0.2s;border-left:4px solid {% if not reply.is_read %}#3b82f6{% else %}transparent{% endif %};background:#11131a">
+                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                        <input type="checkbox" class="reply-checkbox" value="{{ reply.id }}" onchange="updateBulkToolbar()" onclick="event.stopPropagation()" style="margin-top:4px; cursor:pointer; width:14px; height:14px; flex-shrink:0;">
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+                                <div style="display:flex;align-items:center;gap:8px;overflow:hidden">
+                                    {% if not reply.is_read %}
+                                    <div style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div>
+                                    {% endif %}
+                                    <span style="font-weight:600;font-size:14px;color:#f8fafc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                        {{ reply.from_email[:28] }}
+                                    </span>
+                                </div>
+                                <span style="font-size:11px;color:#64748b;flex-shrink:0;margin-left:8px">{{ reply.received_at.strftime('%d %b') }}</span>
+                            </div>
+                            <div style="font-size:13px;color:#cbd5e1;font-weight:500;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:{% if not reply.is_read %}16px{% else %}0{% endif %}">
+                                {{ (reply.subject or '(no subject)')[:38] }}
+                            </div>
+                            <div style="font-size:12px;color:#64748b;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:{% if not reply.is_read %}16px{% else %}0{% endif %}">
+                                {{ reply.body[:55] }}
+                            </div>
+                        </div>
+                    </div>
+                    {% if reply.tag %}
+                    <div style="margin-top:8px;padding-left:{% if not reply.is_read %}16px{% else %}0{% endif %}">
+                        <span style="background:{{ reply.tag.color }}1a;color:{{ reply.tag.color }};font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;border:1px solid {{ reply.tag.color }}40">{{ reply.tag.name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <div style="text-align:center;padding:40px 20px;color:#64748b">
+                <i class="bi bi-inbox" style="font-size:40px;display:block;margin-bottom:12px"></i>
+                <div style="font-size:14px;margin-bottom:8px">No replies yet</div>
+                <small>Click "Fetch Replies" to check for new replies from your campaign leads.</small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RIGHT — Thread Detail -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <!-- Empty state -->
+        <div id="threadEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;color:#64748b;flex-direction:column;gap:12px">
+            <i class="bi bi-envelope-open" style="font-size:48px;opacity:0.5"></i>
+            <span style="font-size:15px">Select a reply to view</span>
+        </div>
+
+        <!-- Thread Detail -->
+        <div id="threadContent" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+            <!-- Header -->
+            <div style="padding:10px 16px;border-bottom:1px solid #2d3148;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+                <div style="flex:1">
+                    <div id="thFrom" style="font-weight:700;font-size:17px;color:#e2e8f0;margin-bottom:3px"></div>
+                    <div id="thSubject" style="color:#94a3b8;font-size:14px;margin-bottom:6px"></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                        <span id="thLead" style="color:#64748b;font-size:12px"></span>
+                        <span id="thCamp" style="color:#6366f1;font-size:12px;font-weight:500"></span>
+                        <span id="thTime" style="color:#64748b;font-size:12px"></span>
+                    </div>
+                </div>
+                <!-- Tag selector in header -->
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="color:#64748b;font-size:12px">Tag:</span>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap" id="tagPills">
+                        <button onclick="setTag(null)" id="tagpill-none"
+                                style="font-size:11px;padding:4px 12px;border-radius:999px;border:1px solid #2d3148;background:#2d3148;color:#e2e8f0;cursor:pointer;font-weight:500;">
+                            None
+                        </button>
+                        {% for tag in tags[:3] %}
+                        <button onclick="setTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')"
+                                id="tagpill-{{ tag.id }}"
+                                style="font-size:11px;padding:4px 12px;border-radius:999px;border:1px solid {{ tag.color }};background:transparent;color:{{ tag.color }};cursor:pointer;font-weight:500;">
+                            {{ tag.name }}
+                        </button>
+                        {% endfor %}
+                        {% if tags|length > 3 %}
+                        <div class="dropdown">
+                            <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:11px;padding:4px 12px;border-radius:999px;border:1px solid #2d3148;color:#94a3b8;background:transparent;font-weight:500;">
+                                + {{ tags|length - 3 }} More
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow" style="background:#1a1d27; border:1px solid #2d3148; border-radius:12px; font-size:12px">
+                                {% for tag in tags[3:] %}
+                                <li><button class="dropdown-item text-light" onclick="setTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" id="tagpill-{{ tag.id }}" style="padding:6px 16px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ tag.color }};margin-right:8px"></span>{{ tag.name }}</button></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Thread Body — scrollable -->
+            <div id="threadBody" style="flex:1;overflow-y:auto;padding:0;background:#0b0d14"></div>
+
+            <!-- Reply Composer — elevated -->
+            <div id="replyComposer" style="margin: 10px 16px 16px 16px; border-radius: 12px; background: #1e212b; border: 1px solid #2d3148; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                <div style="padding:10px 14px; border-bottom:1px solid #2d3148; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i class="bi bi-reply-fill" style="color:#6366f1; font-size:16px;"></i>
+                        <span style="font-weight:600; font-size:14px; color:#f8fafc;">Reply to</span>
+                        <span id="replyToAddr" style="color:#6366f1; font-size:13px; font-weight:600;"></span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="color:#64748b; font-size:12px;">From:</span>
+                        <span id="replyFromAddr" style="color:#22c55e; font-size:12px; font-weight:600; background:rgba(34,197,94,0.1); padding:4px 12px; border-radius:999px; border:1px solid rgba(34,197,94,0.2);"></span>
+                        <input type="hidden" id="replyAccount">
+                    </div>
+                </div>
+                <div style="padding:10px 14px;">
+                    <textarea id="replyBody" class="form-control" rows="2"
+                              placeholder="Write your reply here..."
+                              oninput="handleDraftInput()"
+                              style="background:#181a24; border:1px solid #2d3148; border-radius:8px; color:#f8fafc; resize:none; font-size:14px; margin-bottom:10px; padding:10px; min-height:60px !important; font-family:inherit !important;"></textarea>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span id="draftStatus" style="color:#64748b; font-size:11px;"></span>
+                        <button onclick="sendReply()" id="sendReplyBtn" class="btn btn-primary px-4 shadow-sm" style="border-radius: 8px;">
+                            <i class="bi bi-send-fill me-2"></i>Send Reply
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── KANBAN VIEW ─── -->
+<div id="view-kanban" style="display:none">
+    <div style="overflow-x:auto;padding-bottom:16px;margin-top:16px">
+    <div style="display:flex;gap:16px;min-width:max-content;align-items:flex-start">
+        <div class="kanban-col" style="width:270px;flex-shrink:0">
+            <div style="background:#1e2235;border:1px solid #2d3148;border-radius:10px 10px 0 0;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:8px;height:8px;border-radius:50%;background:#64748b"></div>
+                    <span style="font-weight:600;font-size:13px;color:#e2e8f0">Untagged</span>
+                </div>
+                <span style="background:#2d3148;color:#94a3b8;font-size:11px;padding:1px 7px;border-radius:8px">{{ replies|selectattr('tag_id', 'none')|list|length }}</span>
+            </div>
+            <div class="drop-zone" data-tag-id="0" style="background:#161926;border:1px solid #2d3148;border-top:none;border-radius:0 0 10px 10px;min-height:150px;padding:8px">
+                {% for reply in replies if reply.tag_id == None %}
+                <div class="reply-card" draggable="true" data-id="{{ reply.id }}" onclick="openThread({{ reply.id }})"
+                     style="background:#1a1d27;border:1px solid #2d3148;border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer">
+                    <div style="font-weight:600;font-size:12px;margin-bottom:3px;color:#e2e8f0">{{ reply.from_email[:28] }}</div>
+                    <div style="color:#94a3b8;font-size:11px;margin-bottom:3px">{{ (reply.subject or '(no subject)')[:35] }}</div>
+                    <div style="color:#64748b;font-size:11px;margin-bottom:5px">{{ reply.body[:55] }}...</div>
+                    <div style="color:#64748b;font-size:10px">{{ reply.received_at.strftime('%d %b %H:%M') }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% for tag in tags %}
+        <div class="kanban-col" style="width:270px;flex-shrink:0">
+            <div style="background:#1e2235;border:1px solid #2d3148;border-radius:10px 10px 0 0;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:8px;height:8px;border-radius:50%;background:{{ tag.color }}"></div>
+                    <span style="font-weight:600;font-size:13px;color:#e2e8f0">{{ tag.name }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                    <span style="background:#2d3148;color:#94a3b8;font-size:11px;padding:1px 7px;border-radius:8px">{{ replies|selectattr('tag_id', 'equalto', tag.id)|list|length }}</span>
+                    <a href="/inbox/tags/{{ tag.id }}/delete" onclick="return confirm('Delete tag?')" style="color:#475569;text-decoration:none;font-size:15px;line-height:1">×</a>
+                </div>
+            </div>
+            <div class="drop-zone" data-tag-id="{{ tag.id }}" style="background:#161926;border:1px solid #2d3148;border-top:2px solid {{ tag.color }};border-radius:0 0 10px 10px;min-height:150px;padding:8px">
+                {% for reply in replies if reply.tag_id == tag.id %}
+                <div class="reply-card" draggable="true" data-id="{{ reply.id }}" onclick="openThread({{ reply.id }})"
+                     style="background:#1a1d27;border:1px solid {{ tag.color }}40;border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer">
+                    <div style="font-weight:600;font-size:12px;margin-bottom:3px;color:#e2e8f0">{{ reply.from_email[:28] }}</div>
+                    <div style="color:#94a3b8;font-size:11px;margin-bottom:3px">{{ (reply.subject or '(no subject)')[:35] }}</div>
+                    <div style="color:#64748b;font-size:11px;margin-bottom:5px">{{ reply.body[:55] }}...</div>
+                    <div style="color:#64748b;font-size:10px">{{ reply.received_at.strftime('%d %b %H:%M') }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    </div>
+</div>
+
+<!-- ─── ADD TAG MODAL ─── -->
+<div id="addTagModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#1a1d27;border:1px solid #2d3148;border-radius:16px;width:360px;padding:24px;position:relative">
+        <button onclick="document.getElementById('addTagModal').style.display='none'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;line-height:1">×</button>
+        <h5 style="margin-bottom:18px;font-weight:700;color:#e2e8f0;font-size:16px">Create New Tag</h5>
+        <div class="mb-3">
+            <label class="form-label">Tag Name</label>
+            <input type="text" id="tagName" class="form-control" placeholder="e.g. Hot Lead, Callback..."
+                   style="background:#0f1117;border:1px solid #2d3148;color:#e2e8f0">
+        </div>
+        <div class="mb-4">
+            <label class="form-label">Color</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                {% for c in ['#6366f1','#22c55e','#ef4444','#eab308','#06b6d4','#f97316','#ec4899','#8b5cf6'] %}
+                <div onclick="selectColor('{{ c }}')" data-color="{{ c }}"
+                     style="width:30px;height:30px;border-radius:50%;background:{{ c }};cursor:pointer;border:2px solid transparent;transition:border 0.2s" class="color-option"></div>
+                {% endfor %}
+            </div>
+            <input type="hidden" id="tagColor" value="#6366f1">
+        </div>
+        <button onclick="createTag()" class="btn btn-primary w-100">Create Tag</button>
+    </div>
+</div>
+
+<!-- Data for JS -->
+<script>
+const replyData = {
+{% for reply in replies %}
+{{ reply.id }}: {
+    id: {{ reply.id }},
+    from: {{ reply.from_email | tojson }},
+    subject: {{ (reply.subject or '(no subject)') | tojson }},
+    body: {{ reply.body | tojson }},
+    received: {{ reply.received_at.strftime('%d %b %Y, %H:%M') | tojson }},
+    tagId: {% if reply.tag_id %}{{ reply.tag_id }}{% else %}null{% endif %},
+    tagName: {% if reply.tag %}{{ reply.tag.name | tojson }}{% else %}null{% endif %},
+    tagColor: {% if reply.tag %}{{ reply.tag.color | tojson }}{% else %}null{% endif %},
+    leadId: {% if reply.lead_id %}{{ reply.lead_id }}{% else %}null{% endif %},
+    lead: {% if reply.lead and reply.lead.name %}{{ reply.lead.name | tojson }}{% else %}null{% endif %},
+    campaign: {% if reply.lead and reply.lead.campaign %}{{ reply.lead.campaign.name | tojson }}{% else %}null{% endif %},
+    campaignId: {% if reply.lead and reply.lead.campaign_id %}{{ reply.lead.campaign_id }}{% else %}null{% endif %},
+    accountId: {% if reply.account_id %}{{ reply.account_id }}{% elif reply.lead and reply.lead.campaign and reply.lead.campaign.account_id %}{{ reply.lead.campaign.account_id }}{% else %}null{% endif %},
+    accountEmail: {% if reply.account %}{{ reply.account.email | tojson }}{% elif reply.lead and reply.lead.campaign and reply.lead.campaign.account_id %}{{ reply.lead.campaign.account.email | tojson if reply.lead.campaign.account else 'null' }}{% else %}null{% endif %},
+    draftBody: {{ reply.draft_body | tojson if reply.draft_body else '""' | safe }}
+},
+{% endfor %}
+};
+
+let currentReplyId = null;
+let activeTagFilter = '';
+
+// ─── VIEW ───
+function setView(v) {
+    document.getElementById('view-thread').style.display = v === 'thread' ? 'flex' : 'none';
+    document.getElementById('view-kanban').style.display = v === 'kanban' ? 'block' : 'none';
+    const bt = document.getElementById('btn-thread');
+    const bk = document.getElementById('btn-kanban');
+    if(bt) bt.className = 'dropdown-item text-light ' + (v === 'thread' ? 'bg-primary' : '');
+    if(bk) bk.className = 'dropdown-item text-light ' + (v === 'kanban' ? 'bg-primary' : '');
+}
+
+// ─── OPEN THREAD ───
+async function openThread(id) {
+    currentReplyId = id;
+    const d = replyData[id];
+    if(!d) return;
+
+    // Highlight in list
+    document.querySelectorAll('.reply-list-item').forEach(el => {
+        el.style.background = el.dataset.id == id ? 'rgba(99,102,241,0.12)' : '';
+    });
+
+    document.getElementById('threadEmpty').style.display   = 'none';
+    document.getElementById('threadContent').style.display = 'flex';
+
+    document.getElementById('thFrom').textContent    = d.from;
+    document.getElementById('thSubject').textContent = '📧 ' + d.subject;
+    document.getElementById('thTime').textContent    = '🕐 ' + d.received;
+    document.getElementById('thLead').textContent    = d.lead ? '👤 ' + d.lead : '';
+    document.getElementById('thCamp').textContent    = d.campaign ? '📣 ' + d.campaign : '';
+    document.getElementById('replyToAddr').textContent = d.from;
+
+    // Auto-set sending account from campaign
+    const fromEl = document.getElementById('replyFromAddr');
+    const accEl  = document.getElementById('replyAccount');
+    if(d.accountEmail) {
+        fromEl.textContent = d.accountEmail;
+        accEl.value = d.accountId;
+    } else {
+        fromEl.textContent = 'Default account';
+        accEl.value = '';
+    }
+
+    highlightTagPill(d.tagId);
+
+    const bodyEl = document.getElementById('threadBody');
+    bodyEl.innerHTML = '<div style="padding:20px;color:#94a3b8;text-align:center">Loading thread...</div>';
+    
+    // Fetch full thread history
+    if (d.leadId) {
+        try {
+            const resp = await fetch(`/api/thread/${d.leadId}`);
+            const data = await resp.json();
+            if (data.success && data.thread) {
+                renderThreadTimeline(data.thread, bodyEl, d.accountEmail);
+            } else {
+                renderSingleMessage(d, bodyEl);
+            }
+        } catch (e) {
+            renderSingleMessage(d, bodyEl);
+        }
+    } else {
+        renderSingleMessage(d, bodyEl);
+    }
+
+    // Populate draft body
+    const replyBodyEl = document.getElementById('replyBody');
+    replyBodyEl.value = d.draftBody || '';
+    document.getElementById('draftStatus').textContent = '';
+
+    // Mark as read
+    fetch(`/inbox/${id}/read`);
+    const li = document.querySelector(`.reply-list-item[data-id="${id}"]`);
+    if(li) { li.style.borderLeftColor = 'transparent'; }
+}
+
+function renderThreadTimeline(thread, containerEl, accountEmail) {
+    let html = '<div style="padding: 10px 16px; display: flex; flex-direction: column; gap: 12px;">';
+    
+    thread.forEach(msg => {
+        const isMe = msg.is_sent;
+        const bgColor = isMe ? '#1e212b' : '#181a24';
+        const borderColor = isMe ? '#6366f1' : '#2d3148';
+        const senderInitial = msg.from ? msg.from.charAt(0).toUpperCase() : '?';
+        const senderName = isMe ? 'You' : escHtml(msg.from);
+        
+        let attachmentsHtml = '';
+        if (msg.attachments && msg.attachments.length > 0) {
+            attachmentsHtml = '<div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">';
+            msg.attachments.forEach(att => {
+                const isImg = att.mime_type.startsWith('image/');
+                if (isImg) {
+                    attachmentsHtml += `
+                        <a href="${att.filepath}" target="_blank" style="display:block; border:1px solid #2d3148; border-radius:8px; overflow:hidden;">
+                            <img src="${att.filepath}" style="height: 60px; max-width: 100px; object-fit: cover;">
+                        </a>`;
+                } else {
+                    attachmentsHtml += `
+                        <a href="${att.filepath}" target="_blank" style="display:flex; align-items:center; gap:6px; padding: 6px 12px; background: rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.3); border-radius:8px; text-decoration:none; color:#6366f1; font-size:12px; font-weight:500;">
+                            <i class="bi bi-file-earmark-fill"></i> ${escHtml(att.filename)}
+                        </a>`;
+                }
+            });
+            attachmentsHtml += '</div>';
+        }
+
+        html += `
+            <div style="background:${bgColor}; border:1px solid ${borderColor}; border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+                <div style="padding:12px 16px; border-bottom:1px solid #2d3148; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="width:32px; height:32px; border-radius:50%; background:${isMe ? '#22c55e' : '#3b82f6'}; display:flex; align-items:center; justify-content:center; font-weight:700; color:white; font-size:14px; flex-shrink:0;">
+                            ${senderInitial}
+                        </div>
+                        <div>
+                            <div style="font-weight:600; color:#f8fafc; font-size:14px;">${senderName}</div>
+                        </div>
+                    </div>
+                    <span style="color:#64748b; font-size:12px;">${msg.received}</span>
+                </div>
+                <div style="padding:16px; color:#cbd5e1; font-size:14px; line-height:1.7; white-space:pre-wrap; background:${bgColor};">${escHtml(msg.body)}</div>
+                ${attachmentsHtml ? `<div style="padding: 0 16px 16px 16px; background:${bgColor};">${attachmentsHtml}</div>` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    containerEl.innerHTML = html;
+    
+    // Scroll to bottom
+    setTimeout(() => { containerEl.scrollTop = containerEl.scrollHeight; }, 50);
+}
+
+function renderSingleMessage(d, containerEl) {
+    containerEl.innerHTML = `
+        <div style="padding: 10px 16px;">
+            <div style="background:#181a24; border:1px solid #2d3148; border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+                <div style="padding:12px 16px; border-bottom:1px solid #2d3148; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:40px; height:40px; border-radius:50%; background:#3b82f6; display:flex; align-items:center; justify-content:center; font-weight:700; color:white; font-size:16px; flex-shrink:0;">
+                            ${d.from[0].toUpperCase()}
+                        </div>
+                        <div>
+                            <div style="font-weight:600; color:#f8fafc; font-size:15px; margin-bottom:2px;">${escHtml(d.from)}</div>
+                            <div style="color:#64748b; font-size:12px;">to me</div>
+                        </div>
+                    </div>
+                    <span style="color:#64748b; font-size:12px;">${d.received}</span>
+                </div>
+                <div style="padding:20px; color:#cbd5e1; font-size:14px; line-height:1.7; white-space:pre-wrap; background:#181a24;">${escHtml(d.body)}</div>
+            </div>
+        </div>`;
+}
+
+function escHtml(t) {
+    return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── TAG PILLS IN HEADER ───
+function highlightTagPill(tagId) {
+    document.querySelectorAll('#tagPills button').forEach(btn => {
+        btn.style.fontWeight = '400';
+        btn.style.opacity = '0.7';
+    });
+    const active = document.getElementById(tagId ? `tagpill-${tagId}` : 'tagpill-none');
+    if(active) { active.style.fontWeight = '700'; active.style.opacity = '1'; }
+}
+
+function setTag(tagId, tagName, tagColor) {
+    if(!currentReplyId) return;
+    highlightTagPill(tagId);
+    // Update local data
+    replyData[currentReplyId].tagId   = tagId;
+    replyData[currentReplyId].tagName = tagName || null;
+    // Update list item tag badge
+    const li = document.querySelector(`.reply-list-item[data-id="${currentReplyId}"]`);
+    if(li) {
+        let badge = li.querySelector('.tag-badge');
+        if(!badge) { badge = document.createElement('div'); badge.className='tag-badge'; badge.style.marginTop='5px'; li.appendChild(badge); }
+        badge.innerHTML = tagId ? `<span style="background:${tagColor}25;color:${tagColor};font-size:10px;padding:1px 7px;border-radius:8px;font-weight:500">${tagName}</span>` : '';
+    }
+    // Save to server
+    fetch(`/inbox/${currentReplyId}/move-tag`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({tag_id: tagId})
+    });
+}
+
+// ─── SEND REPLY ───
+function sendReply() {
+    const body  = document.getElementById('replyBody').value.trim();
+    const accId = document.getElementById('replyAccount').value;
+    if(!body) { alert('Reply cannot be empty!'); return; }
+    if(!currentReplyId) return;
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = 'Sending...';
+    const form = document.createElement('form');
+    form.method = 'POST'; form.action = `/inbox/${currentReplyId}/reply`;
+    const b = document.createElement('input'); b.name='body'; b.value=body;
+    const a = document.createElement('input'); a.name='account_id'; a.value=accId;
+    form.appendChild(b); form.appendChild(a);
+    document.body.appendChild(form); form.submit();
+}
+
+// ─── FILTER ───
+function filterList() {
+    const q    = (document.getElementById('slSearch').value||'').toLowerCase();
+    const camp = document.getElementById('slCampaign').value;
+    document.querySelectorAll('.reply-list-item').forEach(el => {
+        const d = replyData[el.dataset.id];
+        const mQ    = !q || 
+                      el.dataset.from.toLowerCase().includes(q) || 
+                      el.dataset.subject.toLowerCase().includes(q) ||
+                      (d && d.body && d.body.toLowerCase().includes(q));
+        const mCamp = !camp || el.dataset.campaign == camp;
+        const mTag  = !activeTagFilter || el.dataset.tag == activeTagFilter;
+        el.style.display = mQ && mCamp && mTag ? 'block' : 'none';
+    });
+    // Update master checkbox logic
+    document.getElementById('masterCheckbox').checked = false;
+    updateBulkToolbar();
+}
+
+function filterByTag(tagId) {
+    activeTagFilter = tagId;
+    document.querySelectorAll('[id^="pill-"]').forEach(b => {
+        b.className = 'btn btn-sm btn-outline-secondary';
+        b.style.cssText = `font-size:10px;padding:2px 8px;border-radius:10px`;
+    });
+    const active = document.getElementById(tagId ? `pill-${tagId}` : 'pill-all');
+    if(active) { active.className = 'btn btn-sm btn-primary'; }
+    filterList();
+}
+
+function filterByCategory(cat) {
+    document.querySelectorAll('.reply-list-item').forEach(el => {
+        el.style.display = !cat || el.dataset.category === cat ? 'block' : 'none';
+    });
+}
+
+function clearSearch() {
+    document.getElementById('slSearch').value = '';
+    filterList();
+}
+
+// ─── FETCH NOW ───
+function fetchNow() {
+    const btn = document.getElementById('fetchBtn');
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Fetching...';
+    btn.disabled = true;
+    window.location.href = '/inbox/fetch-now';
+}
+
+// ─── KANBAN D&D ───
+let dragId = null;
+document.querySelectorAll('.reply-card').forEach(card => {
+    card.addEventListener('dragstart', e => { dragId = card.dataset.id; card.style.opacity='0.5'; });
+    card.addEventListener('dragend',   e => { card.style.opacity='1'; });
+});
+document.querySelectorAll('.drop-zone').forEach(zone => {
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.style.background='rgba(99,102,241,0.1)'; });
+    zone.addEventListener('dragleave', e => { zone.style.background='#161926'; });
+    zone.addEventListener('drop', e => {
+        e.preventDefault(); zone.style.background='#161926';
+        if(dragId) {
+            fetch(`/inbox/${dragId}/move-tag`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({tag_id: zone.dataset.tagId=='0' ? null : zone.dataset.tagId})
+            }).then(r=>r.json()).then(d=>{ if(d.success) location.reload(); });
+        }
+    });
+});
+
+// ─── TAG CREATE ───
+function selectColor(c) {
+    document.getElementById('tagColor').value = c;
+    document.querySelectorAll('.color-option').forEach(el => {
+        el.style.border = el.dataset.color===c ? '3px solid white' : '2px solid transparent';
+    });
+}
+function createTag() {
+    const name = document.getElementById('tagName').value.trim();
+    const color = document.getElementById('tagColor').value;
+    if(!name) { alert('Please enter a tag name!'); return; }
+    const form = document.createElement('form');
+    form.method='POST'; form.action='/inbox/tags/create';
+    form.innerHTML = `<input name="name" value="${name}"><input name="color" value="${color}">`;
+    document.body.appendChild(form); form.submit();
+}
+document.getElementById('addTagModal').addEventListener('click', function(e) {
+    if(e.target===this) this.style.display='none';
+});
+
+// ─── DRAFTS AUTO-SAVE ───
+let draftTimeout = null;
+function handleDraftInput() {
+    if (!currentReplyId) return;
+    const body = document.getElementById('replyBody').value;
+    const statusEl = document.getElementById('draftStatus');
+    statusEl.textContent = 'Saving...';
+    
+    replyData[currentReplyId].draftBody = body; // update local instantly
+    
+    clearTimeout(draftTimeout);
+    draftTimeout = setTimeout(() => {
+        fetch(`/inbox/${currentReplyId}/draft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ draft_body: body })
+        }).then(r => r.json()).then(d => {
+            if(d.success) statusEl.textContent = 'Draft saved';
+        }).catch(() => {
+            statusEl.textContent = 'Failed to save';
+        });
+    }, 1500);
+}
+
+// ─── AUTO FETCH (Silent Background Polling) & NOTIFICATIONS ───
+if ("Notification" in window && Notification.permission !== "denied") {
+    Notification.requestPermission();
+}
+
+setInterval(() => {
+    fetch('/inbox/fetch-now-silent')
+        .then(r => r.json())
+        .then(d => {
+            if(d.new_count > 0) {
+                // If user is focused on reply area, don't auto-reload
+                if (document.activeElement && (document.activeElement.id === 'replyBody' || document.activeElement.id === 'slSearch')) {
+                    const toast = document.createElement('div');
+                    toast.style.cssText = 'position:fixed; bottom:20px; right:20px; background:#3b82f6; color:white; padding:12px 20px; border-radius:8px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.2); z-index:9999;';
+                    toast.innerHTML = `<i class="bi bi-bell-fill me-2"></i>${d.new_count} new email(s)! Click to refresh.`;
+                    toast.onclick = () => location.reload();
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 10000);
+                } else {
+                    location.reload();
+                }
+                
+                // Show OS notification if permitted
+                if ("Notification" in window && Notification.permission === "granted") {
+                    new Notification("MailFlow", {
+                        body: `You received ${d.new_count} new email(s).`,
+                        icon: "/static/favicon.ico"
+                    });
+                }
+            }
+        }).catch(err => console.log('Auto-fetch error:', err));
+}, 30000); // Check every 30 seconds
+
+// ─── BULK ACTIONS ───
+function toggleAllCheckboxes() {
+    const isChecked = document.getElementById('masterCheckbox').checked;
+    document.querySelectorAll('.reply-checkbox').forEach(cb => {
+        if (cb.closest('.reply-list-item').style.display !== 'none') {
+            cb.checked = isChecked;
+        }
+    });
+    updateBulkToolbar();
+}
+
+function updateBulkToolbar() {
+    const checked = document.querySelectorAll('.reply-checkbox:checked');
+    const count = checked.length;
+    const btns = document.getElementById('bulkButtons');
+    const countSpan = document.getElementById('bulkCount');
+    if (count > 0) {
+        btns.style.display = 'flex';
+        countSpan.textContent = `${count} selected`;
+    } else {
+        btns.style.display = 'none';
+        document.getElementById('masterCheckbox').checked = false;
+    }
+}
+
+async function bulkAction(action, tagId = null) {
+    const checked = document.querySelectorAll('.reply-checkbox:checked');
+    if (checked.length === 0) return;
+    
+    const replyIds = Array.from(checked).map(cb => parseInt(cb.value));
+    
+    if (action === 'delete') {
+        if (!confirm(`Are you sure you want to delete ${replyIds.length} emails?`)) return;
+    }
+    
+    let url = `/inbox/bulk/${action}`;
+    let body = { reply_ids: replyIds };
+    if (action === 'tag') {
+        body.tag_id = tagId;
+    } else if (action === 'snooze') {
+        body.days = tagId; // tagId is reused for days parameter
+    }
+    
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.success) {
+            location.reload();
+        }
+    } catch (e) {
+        alert('Error performing bulk action');
+    }
+}
+
+// ─── KEYBOARD SHORTCUTS ───
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    const items = Array.from(document.querySelectorAll('.reply-list-item:not([style*="display: none"])'));
+    if (items.length === 0) return;
+    
+    let currentIndex = items.findIndex(el => parseInt(el.dataset.id) === currentReplyId);
+    
+    if (e.key === 'j') {
+        e.preventDefault();
+        if (currentIndex < items.length - 1) {
+            openThread(parseInt(items[currentIndex + 1].dataset.id));
+        } else if (currentIndex === -1 && items.length > 0) {
+            openThread(parseInt(items[0].dataset.id));
+        }
+    } else if (e.key === 'k') {
+        e.preventDefault();
+        if (currentIndex > 0) {
+            openThread(parseInt(items[currentIndex - 1].dataset.id));
+        }
+    } else if (e.key === 'e' || e.key === 'Delete') {
+        e.preventDefault();
+        if (currentReplyId) {
+            const nextId = currentIndex < items.length - 1 ? parseInt(items[currentIndex + 1].dataset.id) : null;
+            fetch(`/inbox/bulk/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reply_ids: [currentReplyId] })
+            }).then(() => {
+                const el = document.querySelector(`.reply-list-item[data-id="${currentReplyId}"]`);
+                if (el) el.remove();
+                if (nextId) openThread(nextId);
+                else location.reload();
+            });
+        }
+    } else if (e.key === 'r') {
+        e.preventDefault();
+        if (currentReplyId) {
+            document.getElementById('replyBody').focus();
+        }
+    } else if (e.key === 'Escape') {
+        clearSearch();
+        const masterCb = document.getElementById('masterCheckbox');
+        if (masterCb) masterCb.checked = false;
+        if (typeof toggleAllCheckboxes === 'function') toggleAllCheckboxes();
+    }
+});
+
+</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: mailflow
+    env: python
+    buildCommand: pip install -r requirements-production.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_BASE_URL
+        value: https://your-app.onrender.com
+      - key: GOOGLE_CLIENT_ID
+        value: 692871759210-mrjr5ib5mvti7mnue5339au83ihvsrok.apps.googleusercontent.com
+      - key: GOOGLE_CLIENT_SECRET
+        value: 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
+
+databases:
+  - name: mailflow-db
+    plan: free

@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% block title %}Edit Campaign — MailFlow{% endblock %}
+{% block content %}
+<div class="page-title">Edit Campaign</div>
+<div class="page-subtitle">{{ campaign.name }}</div>
+
+<form method="POST">
+<div class="row g-4">
+    <div class="col-md-8">
+
+        <!-- Campaign Details -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-1-circle me-2"></i>Campaign Details</div>
+            <div class="card-body p-4">
+                <div class="mb-3">
+                    <label class="form-label">Campaign Name *</label>
+                    <input type="text" name="name" class="form-control" value="{{ campaign.name }}" required>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Min Delay (minutes)</label>
+                        <input type="number" name="delay_min" class="form-control" value="{{ campaign.delay_min }}" min="1">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Max Delay (minutes)</label>
+                        <input type="number" name="delay_max" class="form-control" value="{{ campaign.delay_max }}" min="1">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email Accounts (Sender Rotation)</label>
+                    <div style="background:#0f1117;border:1px solid #2d3148;border-radius:8px;padding:12px;max-height:150px;overflow-y:auto">
+                        {% if accounts %}
+                            {% for acc in accounts %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="account_ids[]" value="{{ acc.id }}" id="acc_{{ acc.id }}" 
+                                {% if acc.id|string in (campaign.account_ids or '').split(',') %}checked{% endif %}>
+                                <label class="form-check-label" for="acc_{{ acc.id }}" style="color:#e2e8f0;font-size:14px">
+                                    {{ acc.name }} <span style="color:#64748b;font-size:12px">({{ acc.email }})</span>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="color:#64748b;font-size:13px">No active accounts found.</div>
+                        {% endif %}
+                    </div>
+                    <small style="color:#64748b;display:block;margin-top:6px">Select multiple accounts to auto-rotate. Leave empty to use all.</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Schedule</label>
+                    <input type="datetime-local" name="scheduled_at" class="form-control"
+                           value="{{ campaign.scheduled_at.strftime('%Y-%m-%dT%H:%M') if campaign.scheduled_at else '' }}">
+                </div>
+                
+                <!-- Sending Days Dropdown / Selection -->
+                <div class="mb-3 p-3 rounded" style="background:#0f1117;border:1px solid #2d3148">
+                    <label class="form-label" style="color:#e2e8f0;font-weight:600">Select Sending Days</label>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+                        {% set days = [('Mon','0'),('Tue','1'),('Wed','2'),('Thu','3'),('Fri','4'),('Sat','5'),('Sun','6')] %}
+                        {% for day, val in days %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="work_days" value="{{ val }}" id="day_{{ val }}" 
+                            {% if val in (campaign.work_days or '0,1,2,3,4').split(',') %}checked{% endif %}>
+                            <label class="form-check-label" for="day_{{ val }}" style="color:#e2e8f0">{{ day }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <small style="color:#64748b;display:block;margin-top:8px">Select which days of the week this campaign should send emails.</small>
+                    
+                    <hr style="border-color:#2d3148;margin:16px 0">
+                    
+                    <!-- Working Hours -->
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="working_hours" id="workingHoursEdit"
+                               {% if campaign.working_hours %}checked{% endif %}
+                               onchange="document.getElementById('whEdit').style.display=this.checked?'flex':'none'">
+                        <label class="form-check-label" for="workingHoursEdit" style="color:#e2e8f0">
+                            <i class="bi bi-clock me-1" style="color:#6366f1"></i>Restrict to Working Hours
+                        </label>
+                    </div>
+                    <div id="whEdit" style="display:{% if campaign.working_hours %}flex{% else %}none{% endif %}" class="row g-2 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Start Hour</label>
+                            <select name="work_start" class="form-select">
+                                {% for h in range(6,13) %}
+                                <option value="{{ h }}" {% if campaign.work_start == h %}selected{% endif %}>{{ h }}:00 AM</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Hour</label>
+                            <select name="work_end" class="form-select">
+                                {% for h in range(13,22) %}
+                                <option value="{{ h }}" {% if campaign.work_end == h %}selected{% endif %}>{{ h-12 }}:00 PM</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email Content -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-2-circle me-2"></i>Email Content</div>
+            <div class="card-body p-4">
+                <div style="border-left:3px solid #6366f1;padding-left:16px;margin-bottom:20px">
+                    <div class="mb-1" style="color:#6366f1;font-size:12px;font-weight:500">VERSION A</div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject *</label>
+                        <input type="text" name="subject_a" class="form-control" value="{{ campaign.subject_a }}" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Body *</label>
+                        <textarea name="body_a" class="form-control" rows="8" required>{{ campaign.body_a }}</textarea>
+                    </div>
+                </div>
+                {% if campaign.ab_enabled %}
+                <div style="border-left:3px solid #22c55e;padding-left:16px">
+                    <div class="mb-1" style="color:#22c55e;font-size:12px;font-weight:500">VERSION B (A/B Test)</div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject B</label>
+                        <input type="text" name="subject_b" class="form-control" value="{{ campaign.subject_b }}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Body B</label>
+                        <textarea name="body_b" class="form-control" rows="8">{{ campaign.body_b }}</textarea>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Follow-ups -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-arrow-return-right me-2"></i>Follow-up Sequences</div>
+            <div class="card-body p-4">
+                {% if followups %}
+                {% for fu in followups %}
+                <div class="mb-4 p-3 rounded" style="background:#0f1117;border-left:3px solid #6366f1">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <strong style="color:#6366f1">Follow-up {{ fu.step }}</strong>
+                        <a href="/campaigns/{{ campaign.id }}/followup/{{ fu.id }}/delete"
+                           class="btn btn-sm btn-outline-danger"
+                           onclick="return confirm('Delete this followup?')">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Wait Days</label>
+                        <input type="number" name="fu_days_{{ fu.id }}" class="form-control" value="{{ fu.wait_days }}" min="1" style="max-width:120px">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Subject</label>
+                        <input type="text" name="fu_subject_{{ fu.id }}" class="form-control" value="{{ fu.subject }}">
+                    </div>
+                    <div>
+                        <label class="form-label">Body</label>
+                        <textarea name="fu_body_{{ fu.id }}" class="form-control" rows="5">{{ fu.body }}</textarea>
+                    </div>
+                    <input type="hidden" name="fu_ids" value="{{ fu.id }}">
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-3" style="color:#64748b">
+                    <p>No follow-ups yet. Add one below.</p>
+                </div>
+                {% endif %}
+
+                <!-- Add new followup -->
+                <div id="new-followup-container"></div>
+                <button type="button" class="btn btn-outline-primary w-100 mt-2" onclick="addFollowup()">
+                    <i class="bi bi-plus me-1"></i>Add New Follow-up
+                </button>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check me-1"></i>Save Changes</button>
+            <a href="/campaigns/{{ campaign.id }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-shuffle me-2"></i>Spintax Guide</div>
+            <div class="card-body p-4" style="font-size:13px;color:#94a3b8">
+                <p>Use <code>{option1|option2|option3}</code> to randomize:</p>
+                <p style="background:#0f1117;padding:8px;border-radius:6px;font-size:12px">
+                    <code>{Hi|Hello|Hey} {{name}},</code>
+                </p>
+                <hr style="border-color:#2d3148">
+                <strong style="color:#e2e8f0">Tags:</strong><br>
+                <code>{{name}}</code> — Lead name<br>
+                <code>{{company}}</code> — Company<br>
+                <code>{{email}}</code> — Email
+            </div>
+        </div>
+        {% if campaign.status == 'running' %}
+        <div class="card" style="border-color:rgba(234,179,8,0.4);background:rgba(234,179,8,0.05)">
+            <div class="card-body p-3">
+                <i class="bi bi-exclamation-triangle me-2" style="color:#eab308"></i>
+                <span style="color:#eab308;font-size:13px">Campaign is currently running — changes will apply to remaining leads.</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+</form>
+
+<template id="fu-template">
+    <div class="mb-4 p-3 rounded new-fu-card" style="background:#0f1117;border-left:3px solid #22c55e">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <strong style="color:#22c55e">New Follow-up</strong>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.new-fu-card').remove()">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Wait Days</label>
+            <input type="number" name="new_fu_days[]" class="form-control" value="2" min="1" style="max-width:120px">
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Subject</label>
+            <input type="text" name="new_fu_subject[]" class="form-control" placeholder="Re: Following up...">
+        </div>
+        <div>
+            <label class="form-label">Body</label>
+            <textarea name="new_fu_body[]" class="form-control" rows="5" placeholder="Hi {{name}},&#10;&#10;Just following up..."></textarea>
+        </div>
+    </div>
+</template>
+
+{% block scripts %}
+<script>
+function addFollowup() {
+    const tmpl = document.getElementById('fu-template').content.cloneNode(true);
+    document.getElementById('new-followup-container').appendChild(tmpl);
+}
+</script>
+{% endblock %}
+{% endblock %}

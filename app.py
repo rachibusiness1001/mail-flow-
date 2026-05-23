@@ -1,3 +1,7 @@
+import sys
+if __name__ == '__main__':
+    sys.modules['app'] = sys.modules['__main__']
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -11,7 +15,11 @@ from functools import wraps
 from dotenv import load_dotenv
 load_dotenv()  # .env file se variables load karo
 
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_cors import CORS
+
 app = Flask(__name__)
+CORS(app) # Allow cross-origin for Next.js frontend
 
 # ─── CONFIG (env variables se load hoga, warna default use karega) ───
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -19,9 +27,27 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 _db_url = os.environ.get('DATABASE_URL', 'sqlite:///mailflow.db')
 if _db_url.startswith('postgres://'):
     _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+
+# Dynamic fallback to SQLite if remote server is unreachable (sandbox/offline environment)
+if 'sqlite' not in _db_url:
+    try:
+        import urllib.parse
+        import socket
+        parsed = urllib.parse.urlparse(_db_url)
+        # Try quick connection check (2 second timeout)
+        s = socket.create_connection((parsed.hostname, parsed.port or 5432), timeout=2)
+        s.close()
+    except Exception:
+        print("[WARNING] Remote database is unreachable. Falling back to local SQLite database.")
+        _db_url = 'sqlite:///mailflow.db'
+
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECRET_KEY'])
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+
+jwt = JWTManager(app)
 
 # ─── GOOGLE OAUTH CONFIG (env se load hoga) ───
 GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
@@ -48,10 +74,31 @@ class User(db.Model):
     is_active    = db.Column(db.Boolean, default=True)
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
     last_login   = db.Column(db.DateTime, nullable=True)
+    # Default workspace relation can be queried via WorkspaceMember
+
+class Workspace(db.Model):
+    id           = db.Column(db.Integer, primary_key=True)
+    name         = db.Column(db.String(200), nullable=False)
+    owner_id     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    # Stripe Billing fields
+    stripe_customer_id   = db.Column(db.String(100), default='')
+    stripe_subscription_id = db.Column(db.String(100), default='')
+    plan         = db.Column(db.String(50), default='free') # free, pro, agency
+    billing_status = db.Column(db.String(50), default='active')
+    billing_cycle_end = db.Column(db.DateTime, nullable=True)
+
+class WorkspaceMember(db.Model):
+    id           = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
+    user_id      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    role         = db.Column(db.String(50), default='member') # owner, admin, member
+    joined_at    = db.Column(db.DateTime, default=datetime.utcnow)
 
 class EmailAccount(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
-    user_id       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)   # ← multi-user fix
+    user_id       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)   # Legacy, to be migrated
+    workspace_id  = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=True)
     name          = db.Column(db.String(100), nullable=False)
     email         = db.Column(db.String(200), nullable=False)
     password      = db.Column(db.String(200), default='')
@@ -73,7 +120,8 @@ class EmailAccount(db.Model):
 
 class Campaign(db.Model):
     id           = db.Column(db.Integer, primary_key=True)
-    user_id      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)    # ← multi-user fix
+    user_id      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)    # Legacy, to be migrated
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=True)
     name         = db.Column(db.String(200), nullable=False)
     subject_a    = db.Column(db.String(500), nullable=False)
     body_a       = db.Column(db.Text, nullable=False)
@@ -119,7 +167,8 @@ class FollowUp(db.Model):
 
 class Lead(db.Model):
     id               = db.Column(db.Integer, primary_key=True)
-    user_id          = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # ← multi-user fix
+    user_id          = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Legacy, to be migrated
+    workspace_id     = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=True)
     email            = db.Column(db.String(200), nullable=False)
     name             = db.Column(db.String(200), default='')
     company          = db.Column(db.String(200), default='')
@@ -212,8 +261,38 @@ DISPOSABLE_DOMAINS = ['mailinator.com','guerrillamail.com','tempmail.com','throw
                       'spam4.me','tempr.email']
 
 # ─────────────────────────────────────────
-# AUTH HELPERS
+# API BLUEPRINT REGISTRATION
 # ─────────────────────────────────────────
+from api import api_bp
+app.register_blueprint(api_bp)
+
+# ─────────────────────────────────────────
+def get_active_workspace_id(user_id):
+    ws_id = request.headers.get('X-Workspace-ID')
+    if ws_id:
+        try:
+            ws_id_int = int(ws_id)
+            # Verify membership
+            member = WorkspaceMember.query.filter_by(workspace_id=ws_id_int, user_id=user_id).first()
+            if member:
+                return ws_id_int
+        except Exception:
+            pass
+            
+    # Fallback to the user's first/default workspace
+    first_member = WorkspaceMember.query.filter_by(user_id=user_id).first()
+    if first_member:
+        return first_member.workspace_id
+        
+    # If no membership exists, create a default one
+    default_ws = Workspace(name="My Workspace", owner_id=user_id)
+    db.session.add(default_ws)
+    db.session.flush()
+    
+    member = WorkspaceMember(workspace_id=default_ws.id, user_id=user_id, role='owner')
+    db.session.add(member)
+    db.session.commit()
+    return default_ws.id
 
 def login_required(f):
     @wraps(f)
@@ -1035,19 +1114,49 @@ def auth_google_callback():
         session['user_email'] = user.email
         session['user_avatar']= avatar
         session['is_admin']   = user.is_admin
-        return redirect(url_for('dashboard'))
+        
+        from flask_jwt_extended import create_access_token
+        from app import WorkspaceMember
+        access_token = create_access_token(identity=str(user.id))
+        member = WorkspaceMember.query.filter_by(user_id=user.id).first()
+        role = member.role if member else 'owner'
+        is_admin_str = 'true' if user.is_admin else 'false'
+        
+        import urllib.parse
+        params = urllib.parse.urlencode({
+            'token': access_token,
+            'id': user.id,
+            'name': user.name or '',
+            'email': user.email or '',
+            'is_admin': is_admin_str,
+            'plan': user.plan or 'free',
+            'role': role
+        })
+        return redirect(f'http://localhost:3000/login?{params}')
     except Exception as e:
-        flash(f'Google login failed: {str(e)}', 'error')
-        return redirect(url_for('login_page'))
+        import urllib.parse
+        error_msg = urllib.parse.quote_plus(str(e))
+        return redirect(f'http://localhost:3000/login?error={error_msg}')
 
 # ─── GMAIL ACCOUNT OAUTH ───
 
 @app.route('/accounts/google/connect')
-@login_required
 def gmail_connect():
+    token = request.args.get('token')
+    if token:
+        try:
+            from flask_jwt_extended import decode_token
+            decoded = decode_token(token)
+            session['user_id'] = int(decoded['sub'])
+        except Exception as e:
+            return redirect('http://localhost:3000/email-accounts?error=Invalid+session+token')
+            
+    if 'user_id' not in session:
+        return redirect('http://localhost:3000/login')
+        
     if not GOOGLE_CLIENT_ID:
-        flash('Google OAuth not configured. Use App Password method.', 'warning')
-        return redirect(url_for('new_account'))
+        return redirect('http://localhost:3000/email-accounts?error=Google+OAuth+not+configured')
+        
     state = secrets.token_urlsafe(16)
     session['gmail_state'] = state
     params = urllib.parse.urlencode({
@@ -1062,12 +1171,10 @@ def gmail_connect():
 @login_required
 def gmail_callback():
     if request.args.get('state') != session.get('gmail_state'):
-        flash('Invalid state', 'error')
-        return redirect(url_for('accounts'))
+        return redirect('http://localhost:3000/email-accounts?error=Invalid+state')
     code = request.args.get('code')
     if not code:
-        flash('Gmail connection cancelled', 'error')
-        return redirect(url_for('accounts'))
+        return redirect('http://localhost:3000/email-accounts?error=Gmail+connection+cancelled')
     try:
         tokens    = google_get_tokens(code, GMAIL_REDIRECT_URI)
         user_info = google_get_userinfo(tokens['access_token'])
@@ -1082,7 +1189,6 @@ def gmail_callback():
             existing.auth_type    = 'oauth'
             existing.is_active    = True
             db.session.commit()
-            flash(f'{email} reconnected!', 'success')
         else:
             db.session.add(EmailAccount(
                 user_id=uid, name=name, email=email, auth_type='oauth',
@@ -1092,11 +1198,11 @@ def gmail_callback():
                 daily_limit=50
             ))
             db.session.commit()
-            flash(f'{email} connected!', 'success')
-        return redirect(url_for('accounts'))
+        return redirect('http://localhost:3000/email-accounts?success=true')
     except Exception as e:
-        flash(f'Gmail connection failed: {str(e)}', 'error')
-        return redirect(url_for('accounts'))
+        import urllib.parse
+        err_msg = urllib.parse.quote_plus(str(e))
+        return redirect(f'http://localhost:3000/email-accounts?error={err_msg}')
 
 # ─────────────────────────────────────────
 # MAIN ROUTES
@@ -2069,24 +2175,41 @@ def auto_migrate():
         try:
             db.create_all()
             migrations = [
+                # Campaign Table
+                "ALTER TABLE campaign ADD COLUMN workspace_id INTEGER",
                 "ALTER TABLE campaign ADD COLUMN work_days VARCHAR(20) DEFAULT '0,1,2,3,4'",
                 "ALTER TABLE campaign ADD COLUMN working_hours BOOLEAN DEFAULT 0",
                 "ALTER TABLE campaign ADD COLUMN work_start INTEGER DEFAULT 9",
                 "ALTER TABLE campaign ADD COLUMN work_end INTEGER DEFAULT 18",
                 "ALTER TABLE campaign ADD COLUMN scheduled_at DATETIME",
+                "ALTER TABLE campaign ADD COLUMN account_ids VARCHAR(500) DEFAULT ''",
                 "ALTER TABLE campaign ADD COLUMN account_id INTEGER",
+                
+                # EmailAccount Table
+                "ALTER TABLE email_account ADD COLUMN workspace_id INTEGER",
+                "ALTER TABLE email_account ADD COLUMN warmup_enabled BOOLEAN DEFAULT 0",
+                "ALTER TABLE email_account ADD COLUMN warmup_day INTEGER DEFAULT 1",
+                "ALTER TABLE email_account ADD COLUMN warmup_limit INTEGER DEFAULT 5",
+                
+                # Lead Table
+                "ALTER TABLE lead ADD COLUMN workspace_id INTEGER",
+                "ALTER TABLE lead ADD COLUMN account_id INTEGER",
+                "ALTER TABLE lead ADD COLUMN message_id VARCHAR(200) DEFAULT ''",
+                "ALTER TABLE lead ADD COLUMN msg_references TEXT DEFAULT ''",
+                
+                # InboxReply Table
                 "ALTER TABLE inbox_reply ADD COLUMN thread_id VARCHAR(200) DEFAULT ''",
                 "ALTER TABLE inbox_reply ADD COLUMN message_id VARCHAR(200) DEFAULT ''",
                 "ALTER TABLE inbox_reply ADD COLUMN is_sent BOOLEAN DEFAULT 0",
                 "ALTER TABLE inbox_reply ADD COLUMN tag_id INTEGER",
-                "ALTER TABLE inbox_tag ADD COLUMN position INTEGER DEFAULT 0",
-                "ALTER TABLE email_account ADD COLUMN warmup_day INTEGER DEFAULT 1",
-                "ALTER TABLE lead ADD COLUMN account_id INTEGER",
-                "ALTER TABLE lead ADD COLUMN message_id VARCHAR(200) DEFAULT ''",
-                "ALTER TABLE lead ADD COLUMN msg_references TEXT DEFAULT ''",
                 "ALTER TABLE inbox_reply ADD COLUMN msg_references TEXT DEFAULT ''",
                 "ALTER TABLE inbox_reply ADD COLUMN draft_body TEXT DEFAULT ''",
                 "ALTER TABLE inbox_reply ADD COLUMN snoozed_until DATETIME",
+                
+                # InboxTag Table
+                "ALTER TABLE inbox_tag ADD COLUMN position INTEGER DEFAULT 0",
+                
+                # Attachment Table fallback
                 "CREATE TABLE IF NOT EXISTS attachment (id INTEGER PRIMARY KEY AUTOINCREMENT, reply_id INTEGER, filename VARCHAR(255), filepath VARCHAR(500), mime_type VARCHAR(100), size INTEGER, FOREIGN KEY(reply_id) REFERENCES inbox_reply(id))"
             ]
             for sql in migrations:
@@ -2246,3 +2369,4 @@ def duplicate_campaign(id):
     db.session.commit()
     flash(f'Campaign "{original.name}" duplicated!', 'success')
     return redirect(url_for('edit_campaign', id=new_camp.id))
+

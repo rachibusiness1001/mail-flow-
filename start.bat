@@ -17,8 +17,8 @@ if not exist "venv" (
 
 call venv\Scripts\activate
 
-echo Installing dependencies...
-pip install Flask==3.0.0 Flask-SQLAlchemy==3.1.1 Werkzeug==3.0.1 gunicorn==21.2.0 python-dotenv==1.0.0 --quiet
+echo Installing dependencies from requirements.txt...
+pip install -r requirements.txt --quiet
 
 echo Setting up environment...
 set SECRET_KEY=mailflow-super-secret-2024-xK9mP2nQ

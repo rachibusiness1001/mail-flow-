@@ -123,7 +123,7 @@ export default function EmailAccountsPage() {
   const getOAuthUrl = () => {
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("access_token");
-      return `http://localhost:5000/accounts/google/connect?token=${token}`;
+      return `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/accounts/google/connect?token=${token}`;
     }
     return "#";
   };

@@ -168,7 +168,7 @@ export default function LoginPage() {
             </div>
 
             <a
-              href="http://localhost:5000/auth/google"
+              href={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/auth/google`}
               className="w-full flex items-center justify-center gap-3 bg-card border border-[#2d3148] hover:bg-muted text-white font-semibold py-3 px-4 rounded-xl transition-all active:scale-[0.98]"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">

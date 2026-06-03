@@ -30,8 +30,8 @@ def create_checkout_session():
                 'quantity': 1,
             }],
             mode='subscription',
-            success_url=os.environ.get('APP_BASE_URL', 'http://localhost:3000') + '/dashboard?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=os.environ.get('APP_BASE_URL', 'http://localhost:3000') + '/billing',
+            success_url=os.environ.get('FRONTEND_URL', 'http://localhost:3000') + '/dashboard?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=os.environ.get('FRONTEND_URL', 'http://localhost:3000') + '/billing',
             client_reference_id=str(workspace.id), # Track which workspace this is for
             customer=workspace.stripe_customer_id if workspace.stripe_customer_id else None
         )

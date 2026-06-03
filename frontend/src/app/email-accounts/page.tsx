@@ -146,6 +146,10 @@ export default function EmailAccountsPage() {
         className="flex justify-between items-end border-b border-border/50 pb-6"
       >
         <div>
+          <a href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mb-3 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            Back to Dashboard
+          </a>
           <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Sender Channels</h1>
           <p className="text-muted-foreground mt-1 font-medium">Connect SMTP/IMAP senders or Gmail OAuth to warm up delivery channels.</p>
         </div>

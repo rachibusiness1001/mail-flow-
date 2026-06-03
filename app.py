@@ -53,6 +53,7 @@ jwt = JWTManager(app)
 GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 APP_BASE_URL         = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
+FRONTEND_URL         = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 GOOGLE_REDIRECT_URI  = APP_BASE_URL + '/auth/google/callback'
 GMAIL_REDIRECT_URI   = APP_BASE_URL + '/accounts/google/callback'
 
@@ -1132,11 +1133,11 @@ def auth_google_callback():
             'plan': user.plan or 'free',
             'role': role
         })
-        return redirect(f'http://localhost:3000/login?{params}')
+        return redirect(f'{FRONTEND_URL}/login?{params}')
     except Exception as e:
         import urllib.parse
         error_msg = urllib.parse.quote_plus(str(e))
-        return redirect(f'http://localhost:3000/login?error={error_msg}')
+        return redirect(f'{FRONTEND_URL}/login?error={error_msg}')
 
 # ─── GMAIL ACCOUNT OAUTH ───
 
@@ -1149,13 +1150,13 @@ def gmail_connect():
             decoded = decode_token(token)
             session['user_id'] = int(decoded['sub'])
         except Exception as e:
-            return redirect('http://localhost:3000/email-accounts?error=Invalid+session+token')
+            return redirect(f'{FRONTEND_URL}/email-accounts?error=Invalid+session+token')
             
     if 'user_id' not in session:
-        return redirect('http://localhost:3000/login')
+        return redirect(f'{FRONTEND_URL}/login')
         
     if not GOOGLE_CLIENT_ID:
-        return redirect('http://localhost:3000/email-accounts?error=Google+OAuth+not+configured')
+        return redirect(f'{FRONTEND_URL}/email-accounts?error=Google+OAuth+not+configured')
         
     state = secrets.token_urlsafe(16)
     session['gmail_state'] = state
@@ -1171,10 +1172,10 @@ def gmail_connect():
 @login_required
 def gmail_callback():
     if request.args.get('state') != session.get('gmail_state'):
-        return redirect('http://localhost:3000/email-accounts?error=Invalid+state')
+        return redirect(f'{FRONTEND_URL}/email-accounts?error=Invalid+state')
     code = request.args.get('code')
     if not code:
-        return redirect('http://localhost:3000/email-accounts?error=Gmail+connection+cancelled')
+        return redirect(f'{FRONTEND_URL}/email-accounts?error=Gmail+connection+cancelled')
     try:
         tokens    = google_get_tokens(code, GMAIL_REDIRECT_URI)
         user_info = google_get_userinfo(tokens['access_token'])
@@ -1198,11 +1199,11 @@ def gmail_callback():
                 daily_limit=50
             ))
             db.session.commit()
-        return redirect('http://localhost:3000/email-accounts?success=true')
+        return redirect(f'{FRONTEND_URL}/email-accounts?success=true')
     except Exception as e:
         import urllib.parse
         err_msg = urllib.parse.quote_plus(str(e))
-        return redirect(f'http://localhost:3000/email-accounts?error={err_msg}')
+        return redirect(f'{FRONTEND_URL}/email-accounts?error={err_msg}')
 
 # ─────────────────────────────────────────
 # MAIN ROUTES

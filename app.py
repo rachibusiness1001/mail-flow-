@@ -1185,6 +1185,9 @@ def gmail_callback():
         email     = user_info.get('email', '')
         name      = user_info.get('name', email)
         uid       = current_user_id()
+        # Get the user's default workspace
+        default_member = WorkspaceMember.query.filter_by(user_id=uid).first()
+        ws_id = default_member.workspace_id if default_member else None
         existing  = EmailAccount.query.filter_by(email=email, user_id=uid).first()
         if existing:
             existing.access_token = tokens.get('access_token', '')
@@ -1192,10 +1195,12 @@ def gmail_callback():
             existing.token_expiry = datetime.utcnow() + timedelta(seconds=tokens.get('expires_in', 3600))
             existing.auth_type    = 'oauth'
             existing.is_active    = True
+            if ws_id and not existing.workspace_id:
+                existing.workspace_id = ws_id
             db.session.commit()
         else:
             db.session.add(EmailAccount(
-                user_id=uid, name=name, email=email, auth_type='oauth',
+                user_id=uid, workspace_id=ws_id, name=name, email=email, auth_type='oauth',
                 access_token=tokens.get('access_token', ''),
                 refresh_token=tokens.get('refresh_token', ''),
                 token_expiry=datetime.utcnow() + timedelta(seconds=tokens.get('expires_in', 3600)),

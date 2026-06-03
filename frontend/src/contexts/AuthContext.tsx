@@ -35,6 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem("access_token");
+      
+      // Check if we're on login page with OAuth callback params - don't interfere
+      if (pathname === "/login") {
+        const searchParams = new URLSearchParams(window.location.search);
+        if (searchParams.get("token")) {
+          setLoading(false);
+          return; // Let login page handle the OAuth callback
+        }
+      }
+      
       if (!token) {
         setLoading(false);
         if (pathname !== "/" && pathname !== "/login" && pathname !== "/register") {

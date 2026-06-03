@@ -52,10 +52,13 @@ jwt = JWTManager(app)
 # ─── GOOGLE OAUTH CONFIG (env se load hoga) ───
 GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
-APP_BASE_URL         = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
-FRONTEND_URL         = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+APP_BASE_URL         = os.environ.get('APP_BASE_URL', 'http://localhost:5000').strip().rstrip('/')
+FRONTEND_URL         = os.environ.get('FRONTEND_URL', 'http://localhost:3000').strip().rstrip('/')
 GOOGLE_REDIRECT_URI  = APP_BASE_URL + '/auth/google/callback'
 GMAIL_REDIRECT_URI   = APP_BASE_URL + '/accounts/google/callback'
+print(f"[OAUTH DEBUG] APP_BASE_URL={APP_BASE_URL!r}")
+print(f"[OAUTH DEBUG] GOOGLE_REDIRECT_URI={GOOGLE_REDIRECT_URI!r}")
+print(f"[OAUTH DEBUG] GMAIL_REDIRECT_URI={GMAIL_REDIRECT_URI!r}")
 
 db = SQLAlchemy(app)
 

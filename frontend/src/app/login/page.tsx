@@ -36,6 +36,7 @@ export default function LoginPage() {
           role: role || "owner"
         };
         login(token, userObj);
+        window.location.href = "/dashboard"; // ← YAHI EK LINE ADD KI HAI
       } else if (errorParam) {
         setError(decodeURIComponent(errorParam));
       }
@@ -64,7 +65,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Left side: Hero/Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#161926] to-[#0b0d14] border-r border-[#2d3148] p-12 flex-col justify-between relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-3 font-bold text-2xl tracking-tight mb-6">
@@ -81,13 +81,10 @@ export default function LoginPage() {
             Scale your outreach, land more meetings, and automate follow-ups with our lightning-fast SaaS engine.
           </p>
         </div>
-        
-        {/* Abstract shapes */}
         <div className="absolute top-1/4 right-0 w-96 h-96 bg-[#6366f1]/10 rounded-full blur-3xl mix-blend-screen" />
         <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-[#8b5cf6]/10 rounded-full blur-3xl mix-blend-screen" />
       </div>
 
-      {/* Right side: Auth Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-24 relative">
         <div className="w-full max-w-md space-y-8">
           <div>
@@ -167,7 +164,7 @@ export default function LoginPage() {
               <span className="relative bg-[#0b0d14] px-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">Or continue with</span>
             </div>
 
-            <a
+            
               href={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/auth/google`}
               className="w-full flex items-center justify-center gap-3 bg-card border border-[#2d3148] hover:bg-muted text-white font-semibold py-3 px-4 rounded-xl transition-all active:scale-[0.98]"
             >

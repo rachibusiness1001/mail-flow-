@@ -34,6 +34,66 @@ def get_threads():
         
     return jsonify({'threads': result}), 200
 
+@inbox_bp.route('/conversations', methods=['GET'])
+@jwt_required()
+def get_conversations():
+    from app import db, InboxReply, Lead, get_active_workspace_id
+    user_id = int(get_jwt_identity())
+    active_ws_id = get_active_workspace_id(user_id)
+    
+    # Group by from_email (recipient) and get aggregated data
+    conversations = db.session.query(
+        InboxReply.from_email,
+        db.func.count(InboxReply.id).label('count'),
+        db.func.max(InboxReply.received_at).label('last_message'),
+        db.func.sum(db.case((InboxReply.is_read == False, 1), else_=0)).label('unread_count')
+    ).join(Lead, InboxReply.lead_id == Lead.id)\
+    .filter(Lead.user_id == user_id, Lead.workspace_id == active_ws_id)\
+    .group_by(InboxReply.from_email)\
+    .order_by(db.func.max(InboxReply.received_at).desc())\
+    .all()
+    
+    result = []
+    for conv in conversations:
+        result.append({
+            'email': conv.from_email,
+            'message_count': conv.count,
+            'last_message_time': conv.last_message.strftime("%b %d, %I:%M %p") if conv.last_message else '',
+            'unread_count': conv.unread_count or 0
+        })
+    
+    return jsonify({'conversations': result}), 200
+
+@inbox_bp.route('/conversation/<from_email>', methods=['GET'])
+@jwt_required()
+def get_conversation_thread(from_email):
+    from app import db, InboxReply, Lead, get_active_workspace_id
+    user_id = int(get_jwt_identity())
+    active_ws_id = get_active_workspace_id(user_id)
+    
+    # Get all messages with this recipient, ordered chronologically
+    messages = db.session.query(InboxReply)\
+        .join(Lead, InboxReply.lead_id == Lead.id)\
+        .filter(Lead.user_id == user_id, Lead.workspace_id == active_ws_id, InboxReply.from_email == from_email)\
+        .order_by(InboxReply.received_at.asc())\
+        .all()
+    
+    thread_data = []
+    for msg in messages:
+        thread_data.append({
+            'id': msg.id,
+            'from': msg.from_email,
+            'subject': msg.subject,
+            'body': msg.body,
+            'received': msg.received_at.strftime('%b %d, %Y %I:%M %p') if msg.received_at else '',
+            'is_sent': msg.is_sent,
+            'is_read': msg.is_read,
+            'lead_id': msg.lead_id,
+            'lead_name': msg.lead.name if msg.lead else 'Unknown'
+        })
+    
+    return jsonify({'success': True, 'conversation': thread_data}), 200
+
 @inbox_bp.route('/<int:id>/read', methods=['POST'])
 @jwt_required()
 def mark_read(id):

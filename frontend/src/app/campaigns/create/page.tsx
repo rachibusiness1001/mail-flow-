@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import AddLeadsModal from "@/components/AddLeadsModal";
 
 type FollowUp = {
   subject: string;
@@ -47,6 +48,11 @@ export default function CampaignEditor() {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
+  
+  // Add Leads Modal State
+  const [showAddLeadsModal, setShowAddLeadsModal] = useState(false);
+  const [newCampaignId, setNewCampaignId] = useState<number | null>(null);
+
   
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -162,11 +168,14 @@ export default function CampaignEditor() {
       };
       
       let targetId = editId;
+      let isNewCampaign = false;
+      
       if (editId) {
         await api.put(`/campaigns/${editId}`, payload);
       } else {
         const res = await api.post("/campaigns", payload);
         targetId = res.data.id;
+        isNewCampaign = true;
       }
       
       if (status === 'running') {
@@ -174,7 +183,13 @@ export default function CampaignEditor() {
         await api.post(`/campaigns/${targetId}/start`);
       }
       
-      router.push(`/campaigns/${targetId}`);
+      // Show modal for new campaigns (only in draft mode, not when running)
+      if (isNewCampaign && status === 'draft') {
+        setNewCampaignId(targetId);
+        setShowAddLeadsModal(true);
+      } else {
+        router.push(`/campaigns/${targetId}`);
+      }
     } catch (err: any) {
       console.error("Failed to save campaign", err);
       alert(err.response?.data?.error || "Failed to save campaign. Make sure all fields are valid.");
@@ -543,6 +558,20 @@ export default function CampaignEditor() {
         </div>
 
       </div>
+
+      {/* Add Leads Modal */}
+      <AnimatePresence>
+        {showAddLeadsModal && newCampaignId && (
+          <AddLeadsModal 
+            campaignId={newCampaignId}
+            campaignName={name}
+            onClose={() => {
+              setShowAddLeadsModal(false);
+              router.push(`/campaigns/${newCampaignId}`);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

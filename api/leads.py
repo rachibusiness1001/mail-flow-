@@ -26,6 +26,31 @@ def get_leads():
         
     return jsonify({'leads': result}), 200
 
+@leads_bp.route('/uploads', methods=['GET'])
+@jwt_required()
+def get_uploads():
+    from app import db, UploadHistory, get_active_workspace_id
+    user_id = int(get_jwt_identity())
+    active_ws_id = get_active_workspace_id(user_id)
+    
+    # Get all uploads for this user, ordered by most recent first
+    uploads = UploadHistory.query.filter_by(user_id=user_id).order_by(UploadHistory.uploaded_at.desc()).all()
+    
+    result = []
+    for u in uploads:
+        result.append({
+            'id': u.id,
+            'filename': u.filename,
+            'total': u.total,
+            'invalid': u.invalid,
+            'valid': u.total - u.invalid,
+            'uploaded_at': u.uploaded_at.strftime('%b %d, %Y %I:%M %p') if u.uploaded_at else '',
+            'campaign_id': u.campaign_id,
+            'campaign': u.campaign.name if u.campaign else 'Uncampaigned'
+        })
+    
+    return jsonify({'uploads': result}), 200
+
 @leads_bp.route('/<int:id>', methods=['DELETE'])
 @jwt_required()
 def delete_lead(id):
@@ -77,3 +102,55 @@ def upload_leads():
     db.session.commit()
     
     return jsonify({'message': f'Successfully imported {leads_created} leads.'}), 201
+
+@leads_bp.route('/uploads/<int:upload_id>', methods=['DELETE'])
+@jwt_required()
+def delete_upload(upload_id):
+    from app import db, UploadHistory, Lead, get_active_workspace_id
+    user_id = int(get_jwt_identity())
+    
+    upload = UploadHistory.query.filter_by(id=upload_id, user_id=user_id).first()
+    
+    if not upload:
+        return jsonify({'error': 'Upload not found'}), 404
+    
+    # Delete all leads associated with this upload
+    leads_to_delete = Lead.query.filter_by(upload_id=upload_id).all()
+    for lead in leads_to_delete:
+        db.session.delete(lead)
+    
+    # Delete the upload record
+    db.session.delete(upload)
+    db.session.commit()
+    
+    return jsonify({'message': 'Upload and associated leads deleted'}), 200
+
+@leads_bp.route('/uploads/<int:upload_id>/export', methods=['GET'])
+@jwt_required()
+def export_upload(upload_id):
+    from app import db, Lead, get_active_workspace_id
+    user_id = int(get_jwt_identity())
+    
+    # Verify user owns this upload by checking the leads
+    leads = Lead.query.filter_by(upload_id=upload_id).all()
+    
+    if not leads:
+        return jsonify({'error': 'Upload not found or no leads to export'}), 404
+    
+    # Verify user owns these leads
+    if leads and leads[0].user_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    result = []
+    for lead in leads:
+        result.append({
+            'id': lead.id,
+            'name': lead.name,
+            'email': lead.email,
+            'company': lead.company,
+            'status': lead.status,
+            'campaign': lead.campaign.name if lead.campaign else 'None'
+        })
+    
+    return jsonify({'leads': result}), 200
+

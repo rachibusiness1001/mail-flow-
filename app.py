@@ -178,6 +178,7 @@ class Lead(db.Model):
     company          = db.Column(db.String(200), default='')
     phone            = db.Column(db.String(50), default='')
     campaign_id      = db.Column(db.Integer, db.ForeignKey('campaign.id'), nullable=True)
+    upload_id        = db.Column(db.Integer, db.ForeignKey('upload_history.id'), nullable=True)
     account_id       = db.Column(db.Integer, db.ForeignKey('email_account.id'), nullable=True)
     status           = db.Column(db.String(50), default='pending')
     ab_variant       = db.Column(db.String(1), default='')
@@ -605,14 +606,29 @@ def run_campaign(campaign_id, user_id):
             subject = personalize(campaign.subject_a if variant == 'A' else campaign.subject_b, lead)
             body    = personalize(campaign.body_a    if variant == 'A' else campaign.body_b,    lead)
             tracking_id = str(uuid.uuid4())
-            success, error, gmail_thread_id, rfc_message_id = send_email_smtp(account, lead.email, subject, body, tracking_id=tracking_id)
+            
+            # Check for existing thread with this recipient
+            existing_thread = InboxReply.query.filter(
+                InboxReply.user_id == lead.user_id,
+                InboxReply.from_email == lead.email
+            ).order_by(InboxReply.received_at.desc()).first()
+            
+            thread_id_to_use = None
+            message_id_to_use = None
+            if existing_thread:
+                thread_id_to_use = existing_thread.thread_id
+                message_id_to_use = existing_thread.message_id or existing_thread.thread_id
+            
+            success, error, gmail_thread_id, rfc_message_id = send_email_smtp(account, lead.email, subject, body, thread_id=thread_id_to_use, message_id=message_id_to_use, tracking_id=tracking_id)
             if success:
                 lead.status      = 'sent_followup_pending' if campaign.followups else 'sent'
                 lead.sent_at     = datetime.utcnow()
                 lead.current_step= 1
                 lead.tracking_id = tracking_id
                 lead.account_id  = account.id
-                lead.thread_id   = gmail_thread_id
+                # Use existing thread if available, otherwise use returned thread_id
+                final_thread_id = thread_id_to_use or gmail_thread_id or str(uuid.uuid4())
+                lead.thread_id   = final_thread_id
                 lead.message_id  = rfc_message_id
                 lead.ab_variant  = variant
                 
@@ -626,7 +642,7 @@ def run_campaign(campaign_id, user_id):
                     body=body,
                     is_read=True,
                     is_sent=True,
-                    thread_id=gmail_thread_id,
+                    thread_id=final_thread_id,
                     message_id=rfc_message_id
                 ))
                 
@@ -1304,6 +1320,18 @@ def upload_leads():
         reader = csv.DictReader(stream)
         reader.fieldnames = [f.lower().strip() for f in (reader.fieldnames or [])]
         count = invalid = duplicate = 0
+        
+        # First, create the upload history record to get the ID
+        upload_history = UploadHistory(
+            user_id=uid,
+            campaign_id=int(campaign_id),
+            filename=file.filename,
+            total=0,
+            invalid=0
+        )
+        db.session.add(upload_history)
+        db.session.commit()  # Commit to get the ID
+        
         for row in reader:
             email_val = (row.get('email') or row.get('emails') or row.get('email address') or row.get('mail') or '').strip()
             if not email_val or '@' not in email_val: continue
@@ -1321,21 +1349,18 @@ def upload_leads():
                 name=row.get('name','').strip(), company=row.get('company','').strip(),
                 phone=row.get('phone','').strip(),
                 campaign_id=int(campaign_id),
+                upload_id=upload_history.id,
                 status='pending', email_valid=valid
             ))
             count += 1
 
         # Update campaign total
         camp.total_leads = Lead.query.filter_by(campaign_id=int(campaign_id), user_id=uid).count()
+        
+        # Update upload history with final counts
+        upload_history.total = count
+        upload_history.invalid = invalid
 
-        # Save upload history
-        db.session.add(UploadHistory(
-            user_id=uid,
-            campaign_id=int(campaign_id),
-            filename=file.filename,
-            total=count,
-            invalid=invalid
-        ))
         db.session.commit()
 
         msg = f'{count} leads imported to campaign "{camp.name}"!'

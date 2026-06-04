@@ -1,9 +1,8 @@
 "use client";
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { Mail, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
-import { useEffect } from "react";
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -36,7 +35,7 @@ export default function LoginPage() {
           role: role || "owner"
         };
         login(token, userObj);
-        window.location.href = "/dashboard"; // ← YAHI EK LINE ADD KI HAI
+        window.location.href = "/dashboard";
       } else if (errorParam) {
         setError(decodeURIComponent(errorParam));
       }
@@ -62,6 +61,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -106,44 +107,39 @@ export default function LoginPage() {
             {!isLogin && (
               <div>
                 <label className="block text-sm font-medium text-[#cbd5e1] mb-2">Full Name</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-[#161926] border border-[#2d3148] rounded-xl px-4 py-3 text-white placeholder-[#64748b] focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent transition-all"
-                    placeholder="John Doe"
-                    required={!isLogin}
-                  />
-                </div>
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-[#cbd5e1] mb-2">Email address</label>
-              <div className="relative">
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full bg-[#161926] border border-[#2d3148] rounded-xl px-4 py-3 text-white placeholder-[#64748b] focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent transition-all"
-                  placeholder="you@company.com"
-                  required
+                  placeholder="John Doe"
+                  required={!isLogin}
                 />
               </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-[#cbd5e1] mb-2">Email address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-[#161926] border border-[#2d3148] rounded-xl px-4 py-3 text-white placeholder-[#64748b] focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent transition-all"
+                placeholder="you@company.com"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-[#cbd5e1] mb-2">Password</label>
-              <div className="relative">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#161926] border border-[#2d3148] rounded-xl px-4 py-3 text-white placeholder-[#64748b] focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-[#161926] border border-[#2d3148] rounded-xl px-4 py-3 text-white placeholder-[#64748b] focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent transition-all"
+                placeholder="••••••••"
+                required
+              />
             </div>
 
             <button
@@ -165,7 +161,7 @@ export default function LoginPage() {
             </div>
 
             
-              href={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/auth/google`}
+              href={backendUrl + "/auth/google"}
               className="w-full flex items-center justify-center gap-3 bg-card border border-[#2d3148] hover:bg-muted text-white font-semibold py-3 px-4 rounded-xl transition-all active:scale-[0.98]"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">

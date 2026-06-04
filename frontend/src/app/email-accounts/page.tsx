@@ -203,7 +203,31 @@ export default function EmailAccountsPage() {
               
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Limit</span>
-                <span className="text-sm font-extrabold text-foreground">{acc.sent_today} / {acc.daily_limit}</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={async () => {
+                      const newLimit = Math.max(1, acc.daily_limit - 10);
+                      try {
+                        await api.patch(`/email-accounts/${acc.id}/limit`, { daily_limit: newLimit });
+                        setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, daily_limit: newLimit } : a));
+                      } catch {}
+                    }}
+                    className="w-6 h-6 rounded-md bg-muted hover:bg-red-500/20 hover:text-red-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors"
+                    title="Decrease limit"
+                  >−</button>
+                  <span className="text-sm font-extrabold text-foreground min-w-[60px] text-center">{acc.sent_today} / {acc.daily_limit}</span>
+                  <button
+                    onClick={async () => {
+                      const newLimit = Math.min(500, acc.daily_limit + 10);
+                      try {
+                        await api.patch(`/email-accounts/${acc.id}/limit`, { daily_limit: newLimit });
+                        setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, daily_limit: newLimit } : a));
+                      } catch {}
+                    }}
+                    className="w-6 h-6 rounded-md bg-muted hover:bg-green-500/20 hover:text-green-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors"
+                    title="Increase limit"
+                  >+</button>
+                </div>
               </div>
               
               <div className="flex items-center gap-2 pl-4 border-l border-border/50">

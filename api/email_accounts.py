@@ -89,3 +89,17 @@ def delete_account(id):
     db.session.commit()
     
     return jsonify({'success': True}), 200
+
+@email_accounts_bp.route('/<int:id>/limit', methods=['PATCH'])
+@jwt_required()
+def update_limit(id):
+    uid = int(get_jwt_identity())
+    from app import db, EmailAccount, get_active_workspace_id
+    active_ws_id = get_active_workspace_id(uid)
+    acc = EmailAccount.query.filter_by(id=id, user_id=uid, workspace_id=active_ws_id).first_or_404()
+    data = request.get_json() or {}
+    new_limit = data.get('daily_limit')
+    if new_limit is not None:
+        acc.daily_limit = max(1, min(500, int(new_limit)))
+        db.session.commit()
+    return jsonify({'success': True, 'daily_limit': acc.daily_limit}), 200

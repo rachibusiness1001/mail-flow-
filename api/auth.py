@@ -39,7 +39,7 @@ def login():
 @jwt_required()
 def get_me():
     from app import User
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404

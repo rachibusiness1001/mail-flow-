@@ -17,28 +17,48 @@ export default function LoginPage() {
     if (typeof window !== "undefined") {
       const searchParams = new URLSearchParams(window.location.search);
       const token = searchParams.get("token");
-      const id = searchParams.get("id");
-      const nameParam = searchParams.get("name");
-      const emailParam = searchParams.get("email");
-      const isAdmin = searchParams.get("is_admin") === "true";
-      const plan = searchParams.get("plan");
-      const role = searchParams.get("role");
       const errorParam = searchParams.get("error");
 
-      if (token && id && emailParam) {
-        // ✅ FIX: Properly store token before redirecting
-        const userObj = {
-          id: parseInt(id),
-          name: nameParam || "",
-          email: emailParam,
-          plan: plan || "free",
-          is_admin: isAdmin,
-          role: role || "owner"
-        };
-        // Store token first, then call login which will trigger redirect
+      if (token) {
+        // ✅ FIX: Store token and fetch user data via API
         localStorage.setItem("access_token", token);
-        login(token, userObj);
-        // Don't use window.location.href - let login() handle the router.push
+        
+        // Fetch user data from /auth/me endpoint
+        const fetchUserData = async () => {
+          try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+            const response = await fetch(
+              `${backendUrl}/api/v1/auth/me`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              }
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              const userObj = {
+                id: data.user.id,
+                name: data.user.name || "",
+                email: data.user.email,
+                plan: data.user.plan || "free",
+                is_admin: data.user.is_admin || false,
+                role: data.user.role || "owner"
+              };
+              login(token, userObj);
+            } else {
+              setError("Failed to fetch user data. Please try again.");
+              localStorage.removeItem("access_token");
+            }
+          } catch (err) {
+            console.error("Error fetching user data:", err);
+            setError("Failed to fetch user data. Please try again.");
+            localStorage.removeItem("access_token");
+          }
+        };
+        
+        fetchUserData();
       } else if (errorParam) {
         setError(decodeURIComponent(errorParam));
       }

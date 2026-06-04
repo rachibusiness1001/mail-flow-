@@ -1137,18 +1137,12 @@ def auth_google_callback():
         
         from flask_jwt_extended import create_access_token
         access_token = create_access_token(identity=str(user.id))
-        role = member.role if member else 'owner'
-        is_admin_str = 'true' if user.is_admin else 'false'
         
+        # ✅ FIX: Send only token to avoid URL length issues
+        # Frontend will fetch user info via /auth/me API
         import urllib.parse
         params = urllib.parse.urlencode({
-            'token': access_token,
-            'id': user.id,
-            'name': user.name or '',
-            'email': user.email or '',
-            'is_admin': is_admin_str,
-            'plan': user.plan or 'free',
-            'role': role
+            'token': access_token
         })
         return redirect(f'{FRONTEND_URL}/login?{params}')
     except Exception as e:

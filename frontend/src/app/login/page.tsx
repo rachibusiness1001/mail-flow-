@@ -26,6 +26,7 @@ export default function LoginPage() {
       const errorParam = searchParams.get("error");
 
       if (token && id && emailParam) {
+        // ✅ FIX: Properly store token before redirecting
         const userObj = {
           id: parseInt(id),
           name: nameParam || "",
@@ -34,8 +35,10 @@ export default function LoginPage() {
           is_admin: isAdmin,
           role: role || "owner"
         };
+        // Store token first, then call login which will trigger redirect
+        localStorage.setItem("access_token", token);
         login(token, userObj);
-        window.location.href = "/dashboard";
+        // Don't use window.location.href - let login() handle the router.push
       } else if (errorParam) {
         setError(decodeURIComponent(errorParam));
       }

@@ -1037,7 +1037,9 @@ def auth_login():
     email    = data.get('email', '').lower().strip()
     password = data.get('password', '')
     user     = User.query.filter_by(email=email).first()
-    if not user or not check_password_hash(user.password_hash, password):
+    
+    # ✅ FIX: Check if user exists AND password_hash is not empty before checking
+    if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
         return jsonify({'success': False, 'message': 'Invalid email or password'})
     if not user.is_active:
         return jsonify({'success': False, 'message': 'Account deactivated'})
@@ -1104,15 +1106,29 @@ def auth_google_callback():
         avatar    = user_info.get('picture', '')
         google_id = user_info.get('id', '')
         user = User.query.filter_by(email=email).first()
+        is_new_user = False
         if not user:
             user = User(name=name, email=email, google_id=google_id, avatar=avatar)
             db.session.add(user)
+            is_new_user = True
         else:
             user.google_id = google_id
             user.avatar    = avatar
             if not user.name: user.name = name
         user.last_login = datetime.utcnow()
         db.session.commit()
+        
+        # ✅ ENSURE WORKSPACE IS CREATED FOR GOOGLE AUTH USERS
+        member = WorkspaceMember.query.filter_by(user_id=user.id).first()
+        if not member:
+            # Create default workspace for new Google auth users
+            ws = Workspace(name="My Workspace", owner_id=user.id)
+            db.session.add(ws)
+            db.session.flush()
+            member = WorkspaceMember(workspace_id=ws.id, user_id=user.id, role='owner')
+            db.session.add(member)
+            db.session.commit()
+        
         session['user_id']    = user.id
         session['user_name']  = user.name
         session['user_email'] = user.email
@@ -1120,9 +1136,7 @@ def auth_google_callback():
         session['is_admin']   = user.is_admin
         
         from flask_jwt_extended import create_access_token
-        from app import WorkspaceMember
         access_token = create_access_token(identity=str(user.id))
-        member = WorkspaceMember.query.filter_by(user_id=user.id).first()
         role = member.role if member else 'owner'
         is_admin_str = 'true' if user.is_admin else 'false'
         

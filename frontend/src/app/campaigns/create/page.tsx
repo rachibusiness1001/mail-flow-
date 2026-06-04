@@ -185,7 +185,7 @@ export default function CampaignEditor() {
       
       // Show modal for new campaigns (only in draft mode, not when running)
       if (isNewCampaign && status === 'draft') {
-        setNewCampaignId(targetId);
+        setNewCampaignId(targetId ? Number(targetId) : null);
         setShowAddLeadsModal(true);
       } else {
         router.push(`/campaigns/${targetId}`);

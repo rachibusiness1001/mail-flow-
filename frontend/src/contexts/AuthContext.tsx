@@ -91,11 +91,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/dashboard");
   };
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("active_workspace_id");
-    setUser(null);
-    router.push("/login");
+  const logout = async () => {
+    try {
+      // Clear all authentication-related data
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("active_workspace_id");
+      
+      // Clear user state
+      setUser(null);
+      
+      // Redirect to login page
+      await router.push("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Force clear state and redirect even if there's an error
+      localStorage.clear();
+      setUser(null);
+      window.location.href = "/login";
+    }
   };
 
   return (

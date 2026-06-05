@@ -50,6 +50,18 @@ export default function Sidebar() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+      addToast("Logout failed. Please try again.", "error");
+      setIsLoggingOut(false);
+    }
+  };
 
   const fetchSidebarData = async () => {
     if (!user) return;
@@ -264,12 +276,14 @@ export default function Sidebar() {
            </div>
          </div>
          <button 
-           onClick={logout}
+           type="button"
+           onClick={handleLogout}
+           disabled={isLoggingOut}
            title="Click to logout"
-           className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-colors text-left group font-medium text-sm"
+           className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-colors text-left group font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
          >
            <LogOut className="w-4 h-4" />
-           <span>Logout</span>
+           <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
          </button>
        </div>
 

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Plus, Flame, Power, Trash2, Loader2, AlertCircle, X, ShieldAlert, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { useToast } from "@/components/Toast";
 
 type EmailAccount = {
   id: number;
@@ -21,6 +22,7 @@ type EmailAccount = {
 };
 
 export default function EmailAccountsPage() {
+  const { addToast } = useToast();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -56,16 +58,16 @@ export default function EmailAccountsPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("success") === "true") {
-        alert("Gmail account successfully connected via Google OAuth!");
+        addToast("Gmail account successfully connected via Google OAuth!", "success");
         // Clean URL params
         window.history.replaceState({}, document.title, window.location.pathname);
         fetchAccounts();
       } else if (params.get("error")) {
-        alert(`OAuth connection failed: ${params.get("error")}`);
+        addToast(`OAuth connection failed: ${params.get("error")}`, "error");
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-  }, []);
+  }, [addToast]);
 
   const handleToggleWarmup = async (id: number) => {
     try {
@@ -83,8 +85,9 @@ export default function EmailAccountsPage() {
     try {
       await api.delete(`/email-accounts/${id}`);
       setAccounts(prev => prev.filter(a => a.id !== id));
+      addToast("Email account removed successfully", "success");
     } catch (err) {
-      alert("Failed to remove email sender");
+      addToast("Failed to remove email sender", "error");
     }
   };
 
@@ -112,9 +115,10 @@ export default function EmailAccountsPage() {
       setImapHost("imap.gmail.com");
       setDailyLimit(50);
       
+      addToast("Email account added successfully!", "success");
       fetchAccounts();
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to add email connection. Please verify credentials.");
+      addToast(err.response?.data?.error || "Failed to add email connection. Please verify credentials.", "error");
     } finally {
       setModalLoading(false);
     }

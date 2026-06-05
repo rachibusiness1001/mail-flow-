@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/Toast";
+import { InputModal } from "@/components/InputModal";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 
@@ -39,11 +41,14 @@ type Workspace = {
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { addToast } = useToast();
   const showSettings = user?.role === "owner" || user?.role === "admin";
   const showAdmin = user?.is_admin === true;
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const fetchSidebarData = async () => {
     if (!user) return;
@@ -75,18 +80,19 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, [user]);
 
-  const handleCreateProject = async () => {
-    const name = prompt("Enter your new Project/Workspace name:");
-    if (!name || name.trim() === "") return;
-
+  const handleCreateProject = async (name: string) => {
+    setIsCreating(true);
     try {
       const res = await api.post("/workspaces", { name: name.trim() });
       if (res.data.success) {
-        // Refresh workspaces list
+        addToast(`Project "${name}" created successfully!`, "success");
         fetchSidebarData();
+        setIsModalOpen(false);
       }
     } catch (err) {
-      alert("Failed to create workspace project");
+      addToast("Failed to create workspace project", "error");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -167,7 +173,7 @@ export default function Sidebar() {
             <div className="px-3 mb-3 mt-6 text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center justify-between">
               PROJECTS
               <button 
-                onClick={handleCreateProject}
+                onClick={() => setIsModalOpen(true)}
                 className="w-5 h-5 flex items-center justify-center opacity-70 hover:opacity-100 hover:bg-muted rounded text-sm transition-all"
                 title="Add New Project"
               >
@@ -249,6 +255,15 @@ export default function Sidebar() {
            <span>Logout</span>
          </button>
        </div>
+
+      <InputModal
+        isOpen={isModalOpen}
+        title="Create New Project/Workspace"
+        placeholder="Enter project name..."
+        onConfirm={handleCreateProject}
+        onCancel={() => setIsModalOpen(false)}
+        isLoading={isCreating}
+      />
     </div>
   );
 }

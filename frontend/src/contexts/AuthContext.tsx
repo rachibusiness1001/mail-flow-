@@ -56,9 +56,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await api.get("/auth/me");
         setUser(response.data.user);
+        
+        // Ensure workspace context is preserved on auth init
+        if (!localStorage.getItem("active_workspace_id")) {
+          // Fetch workspaces to set a default one
+          try {
+            const wsResponse = await api.get("/workspaces");
+            if (wsResponse.data.workspaces && wsResponse.data.workspaces.length > 0) {
+              localStorage.setItem("active_workspace_id", wsResponse.data.workspaces[0].id.toString());
+            }
+          } catch (wsErr) {
+            console.error("Failed to fetch workspaces", wsErr);
+          }
+        }
       } catch (err) {
         console.error("Auth verification failed", err);
         localStorage.removeItem("access_token");
+        localStorage.removeItem("active_workspace_id");
         if (pathname !== "/" && pathname !== "/login" && pathname !== "/register") {
           router.push("/login");
         }
@@ -78,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("access_token");
+    localStorage.removeItem("active_workspace_id");
     setUser(null);
     router.push("/login");
   };

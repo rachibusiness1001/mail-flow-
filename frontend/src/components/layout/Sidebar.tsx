@@ -226,25 +226,29 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <div className="p-4 border-t border-border/50">
-        <button 
-          onClick={logout}
-          title="Click to logout"
-          className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-colors text-left group"
-        >
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-foreground font-bold text-sm uppercase group-hover:bg-red-500/20 group-hover:text-red-500">
-            {user?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <div className="text-sm font-bold text-foreground/80 truncate group-hover:text-red-500">
-              {user?.name || user?.email || "User"}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate uppercase font-bold tracking-wider">
-              {user?.role || "Member"} {user?.is_admin ? "(Admin)" : ""}
-            </div>
-          </div>
-        </button>
-      </div>
+       <div className="p-4 border-t border-border/50 space-y-2">
+         <div className="flex items-center gap-3 w-full p-2 rounded-xl bg-muted/30 text-left">
+           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-foreground font-bold text-sm uppercase">
+             {user?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
+           </div>
+           <div className="flex-1 overflow-hidden">
+             <div className="text-sm font-bold text-foreground/80 truncate">
+               {user?.name || user?.email || "User"}
+             </div>
+             <div className="text-[10px] text-muted-foreground truncate uppercase font-bold tracking-wider">
+               {user?.role || "Member"} {user?.is_admin ? "(Admin)" : ""}
+             </div>
+           </div>
+         </div>
+         <button 
+           onClick={logout}
+           title="Click to logout"
+           className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-colors text-left group font-medium text-sm"
+         >
+           <LogOut className="w-4 h-4" />
+           <span>Logout</span>
+         </button>
+       </div>
     </div>
   );
 }

@@ -136,16 +136,18 @@ export default function LeadsFilesList({ uploads, onUploadDeleted, onExport }: L
             </div>
           </motion.div>
         ))}
-       </div>
-       <ConfirmModal
-         isOpen={confirmDeleteId !== null}
-         title="Delete Uploaded File"
-         description="Are you sure you want to delete this file? All associated leads will be removed."
-         confirmText="Delete"
-         cancelText="Cancel"
-         destructive
-         isLoading={deleting !== null}
-         onConfirm={handleConfirmDelete}
-         onCancel={() => setConfirmDeleteId(null)}
-       />
-     </>
+      </div>
+      <ConfirmModal
+        isOpen={confirmDeleteId !== null}
+        title="Delete Uploaded File"
+        description="Are you sure you want to delete this file? All associated leads will be removed."
+        confirmText="Delete"
+        cancelText="Cancel"
+        destructive
+        isLoading={deleting !== null}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+    </>
+  );
+}

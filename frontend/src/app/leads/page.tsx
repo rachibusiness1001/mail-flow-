@@ -71,7 +71,7 @@ export default function LeadsPage() {
           lead.status || '',
           lead.campaign || ''
         ])
-      ].map(row => row.map(cell => `"${cell}"`).join(','))
+       ].map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(','))
         .join('\n');
       
       // Download CSV

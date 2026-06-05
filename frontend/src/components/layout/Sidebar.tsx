@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   Home, 
   Megaphone, 
@@ -40,6 +40,7 @@ type Workspace = {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuth();
   const { addToast } = useToast();
   const showSettings = user?.role === "owner" || user?.role === "admin";
@@ -80,13 +81,29 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, [user]);
 
+  const validateWorkspaceName = (value: string) => {
+    if (!value.trim()) {
+      return "Workspace name is required.";
+    }
+
+    if (value.length > 50) {
+      return "Workspace name must be 50 characters or less.";
+    }
+
+    if (!/^[a-zA-Z0-9 _-]+$/.test(value)) {
+      return "Workspace name may only include letters, numbers, spaces, hyphens, and underscores.";
+    }
+
+    return null;
+  };
+
   const handleCreateProject = async (name: string) => {
     setIsCreating(true);
     try {
       const res = await api.post("/workspaces", { name: name.trim() });
       if (res.data.success) {
         addToast(`Project "${name}" created successfully!`, "success");
-        fetchSidebarData();
+        await fetchSidebarData();
         setIsModalOpen(false);
       }
     } catch (err) {
@@ -189,7 +206,7 @@ export default function Sidebar() {
                     key={item.id} 
                     onClick={() => {
                       localStorage.setItem("active_workspace_id", item.id.toString());
-                      window.location.href = "/dashboard";
+                      router.push("/dashboard");
                     }}
                     className="w-full text-left focus:outline-none"
                   >
@@ -263,6 +280,7 @@ export default function Sidebar() {
         onConfirm={handleCreateProject}
         onCancel={() => setIsModalOpen(false)}
         isLoading={isCreating}
+        validate={validateWorkspaceName}
       />
     </div>
   );

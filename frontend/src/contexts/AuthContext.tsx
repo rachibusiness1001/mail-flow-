@@ -46,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (!token) {
+        localStorage.removeItem("active_workspace_id");
         setLoading(false);
         if (pathname !== "/" && pathname !== "/login" && pathname !== "/register") {
           router.push("/login");

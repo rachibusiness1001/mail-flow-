@@ -4,7 +4,9 @@ import { ArrowLeft, Play, Pause, Trash2, Edit2, Clock, SplitSquareHorizontal, Us
 import Link from "next/link";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import api from "@/lib/api";
+import api, { withRetry } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
+import { useToast } from "@/components/Toast";
 
 type Step = {
   id: number;
@@ -38,8 +40,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [activeTab, setActiveTab] = useState("sequence");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { addToast } = useToast();
 
   const fetchCampaign = async () => {
     try {
@@ -66,7 +71,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         await api.post(`/campaigns/${campaign.id}/pause`);
         setCampaign(prev => prev ? { ...prev, status: "paused" } : null);
       } else {
-        await api.post(`/campaigns/${campaign.id}/start`);
+        await withRetry(() => api.post(`/campaigns/${campaign.id}/start`));
         setCampaign(prev => prev ? { ...prev, status: "running" } : null);
       }
     } catch (err: any) {
@@ -76,14 +81,23 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!campaign) return;
-    if (!confirm("Are you sure you want to delete this campaign? This cannot be undone.")) return;
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCampaign = async () => {
+    if (!campaign) return;
+    setDeleteLoading(true);
     try {
       await api.delete(`/campaigns/${campaign.id}`);
       router.push("/campaigns");
     } catch (err) {
-      alert("Failed to delete campaign");
+      console.error("Failed to delete campaign", err);
+      addToast("Failed to delete campaign", "error");
+    } finally {
+      setDeleteLoading(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -246,6 +260,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
       </motion.div>
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete Campaign"
+        description="Are you sure you want to delete this campaign? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        destructive
+        isLoading={deleteLoading}
+        onConfirm={confirmDeleteCampaign}
+        onCancel={() => setShowDeleteModal(false)}
+      />
     </div>
   );
 }

@@ -1,5 +1,26 @@
 import axios from 'axios';
 
+export const withRetry = async <T>(fn: () => Promise<T>, retries = 3): Promise<T> => {
+  let delay = 1000;
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isNetworkError = !error.response;
+      if (!isNetworkError || attempt === retries) {
+        throw error;
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+
+  // Should never reach here
+  return fn();
+};
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1',
   headers: {

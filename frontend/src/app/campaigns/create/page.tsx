@@ -4,7 +4,7 @@ import { Save, Play, Clock, Users, ArrowLeft, Mail, SplitSquareHorizontal, Trash
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import api from "@/lib/api";
+import api, { withRetry } from "@/lib/api";
 import AddLeadsModal from "@/components/AddLeadsModal";
 
 type FollowUp = {
@@ -180,7 +180,7 @@ export default function CampaignEditor() {
       
       if (status === 'running') {
         // Start campaign immediately
-        await api.post(`/campaigns/${targetId}/start`);
+        await withRetry(() => api.post(`/campaigns/${targetId}/start`));
       }
       
       // Show modal for new campaigns (only in draft mode, not when running)

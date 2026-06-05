@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { File, Download, Trash2, Eye, MoreHorizontal, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import api from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 type Upload = {
   id: number;
@@ -23,19 +24,25 @@ type LeadsFilesListProps = {
 
 export default function LeadsFilesList({ uploads, onUploadDeleted, onExport }: LeadsFilesListProps) {
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const handleDelete = async (uploadId: number) => {
-    if (!confirm("Are you sure you want to delete this file? All associated leads will be removed.")) return;
-    
+  const handleDelete = (uploadId: number) => {
+    setConfirmDeleteId(uploadId);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (confirmDeleteId === null) return;
+
     try {
-      setDeleting(uploadId);
-      await api.delete(`/leads/uploads/${uploadId}`);
-      onUploadDeleted?.(uploadId);
+      setDeleting(confirmDeleteId);
+      await api.delete(`/leads/uploads/${confirmDeleteId}`);
+      onUploadDeleted?.(confirmDeleteId);
     } catch (error) {
       console.error("Failed to delete upload", error);
       alert("Failed to delete upload");
     } finally {
       setDeleting(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -54,8 +61,9 @@ export default function LeadsFilesList({ uploads, onUploadDeleted, onExport }: L
   }
 
   return (
-    <div className="space-y-3">
-      {uploads.map((upload, idx) => (
+    <>
+      <div className="space-y-3">
+        {uploads.map((upload, idx) => (
         <motion.div 
           key={upload.id}
           initial={{ opacity: 0, y: 10 }}
@@ -129,5 +137,14 @@ export default function LeadsFilesList({ uploads, onUploadDeleted, onExport }: L
         </motion.div>
       ))}
     </div>
-  );
-}
+    <ConfirmModal
+      isOpen={confirmDeleteId !== null}
+      title="Delete Uploaded File"
+      description="Are you sure you want to delete this file? All associated leads will be removed."
+      confirmText="Delete"
+      cancelText="Cancel"
+      destructive
+      isLoading={deleting !== null}
+      onConfirm={handleConfirmDelete}
+      onCancel={() => setConfirmDeleteId(null)}
+    />

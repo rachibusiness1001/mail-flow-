@@ -10,6 +10,7 @@ interface InputModalProps {
   onConfirm: (value: string) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  validate?: (value: string) => string | null;
 }
 
 export function InputModal({
@@ -19,19 +20,43 @@ export function InputModal({
   onConfirm,
   onCancel,
   isLoading = false,
+  validate,
 }: InputModalProps) {
   const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const validateValue = (nextValue: string) => {
+    if (!validate) {
+      return null;
+    }
+    return validate(nextValue);
+  };
 
   const handleConfirm = () => {
-    if (value.trim()) {
-      onConfirm(value.trim());
+    const trimmed = value.trim();
+    const validationError = validateValue(trimmed);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    if (trimmed) {
+      onConfirm(trimmed);
       setValue("");
+      setError(null);
     }
   };
 
   const handleCancel = () => {
     setValue("");
+    setError(null);
     onCancel();
+  };
+
+  const handleBlur = () => {
+    const trimmed = value.trim();
+    const validationError = validateValue(trimmed);
+    setError(validationError);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -74,13 +99,23 @@ export function InputModal({
               <input
                 type="text"
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setValue(nextValue);
+                  if (error) {
+                    setError(validateValue(nextValue.trim()));
+                  }
+                }}
+                onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 autoFocus
                 disabled={isLoading}
                 className="w-full px-4 py-2.5 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all disabled:opacity-50"
               />
+              {error ? (
+                <p className="mt-2 text-xs text-red-500">{error}</p>
+              ) : null}
 
               <div className="flex gap-3 mt-6">
                 <button

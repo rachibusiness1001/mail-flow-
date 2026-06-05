@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/Toast";
+import OfflineBanner from "@/components/OfflineBanner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className="h-full antialiased">
       <body className={`${inter.className} min-h-full flex flex-col bg-background text-foreground transition-colors duration-300`}>
+        <OfflineBanner />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

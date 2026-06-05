@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
 
@@ -22,22 +22,65 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toastQueue, setToastQueue] = useState<Toast[]>([]);
+  const timers = useRef<Record<string, number>>({});
+
+  const scheduleRemoval = useCallback((toast: Toast) => {
+    if (!toast.duration || toast.duration <= 0) return;
+    const timerId = window.setTimeout(() => {
+      removeToast(toast.id);
+    }, toast.duration);
+    timers.current[toast.id] = timerId;
+  }, []);
+
+  const showNextToast = useCallback(() => {
+    setToastQueue((prevQueue) => {
+      if (prevQueue.length === 0) {
+        return prevQueue;
+      }
+
+      const [nextToast, ...remaining] = prevQueue;
+      setToasts((prevToasts) => {
+        if (prevToasts.length >= 3) {
+          return prevToasts;
+        }
+        scheduleRemoval(nextToast);
+        return [...prevToasts, nextToast];
+      });
+
+      return remaining;
+    });
+  }, [scheduleRemoval]);
+
+  const removeToast = useCallback((id: string) => {
+    if (timers.current[id]) {
+      window.clearTimeout(timers.current[id]);
+      delete timers.current[id];
+    }
+
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    showNextToast();
+  }, [showNextToast]);
 
   const addToast = useCallback((message: string, type: ToastType, duration = 4000) => {
     const id = Math.random().toString(36).substr(2, 9);
     const newToast: Toast = { id, message, type, duration };
-    
-    setToasts((prev) => [...prev, newToast]);
 
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
-      }, duration);
-    }
-  }, []);
+    setToasts((prevToasts) => {
+      if (prevToasts.length < 3) {
+        scheduleRemoval(newToast);
+        return [...prevToasts, newToast];
+      }
+      setToastQueue((prevQueue) => [...prevQueue, newToast]);
+      return prevToasts;
+    });
+  }, [scheduleRemoval]);
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  useEffect(() => {
+    return () => {
+      Object.values(timers.current).forEach((timerId) => window.clearTimeout(timerId));
+      timers.current = {};
+    };
   }, []);
 
   return (

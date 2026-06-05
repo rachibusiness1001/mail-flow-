@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Plus, Flame, Power, Trash2, Loader2, AlertCircle, X, ShieldAlert, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 import { useToast } from "@/components/Toast";
 
 type EmailAccount = {
@@ -37,6 +38,11 @@ export default function EmailAccountsPage() {
   const [imapHost, setImapHost] = useState("imap.gmail.com");
   const [dailyLimit, setDailyLimit] = useState(50);
   const [modalLoading, setModalLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [togglingWarmupId, setTogglingWarmupId] = useState<number | null>(null);
+  const [updatingLimitId, setUpdatingLimitId] = useState<number | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const fetchAccounts = async () => {
     try {
@@ -69,30 +75,74 @@ export default function EmailAccountsPage() {
     }
   }, [addToast]);
 
+  const validateEmailFormat = (value: string) => {
+    if (!value.trim()) {
+      return "Please enter an email address.";
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value) ? null : "Please enter a valid email address.";
+  };
+
   const handleToggleWarmup = async (id: number) => {
+    setTogglingWarmupId(id);
     try {
       const res = await api.post(`/email-accounts/${id}/toggle-warmup`);
       if (res.data.success) {
         setAccounts(prev => prev.map(a => a.id === id ? { ...a, warmup_enabled: res.data.warmup_enabled } : a));
+        addToast(
+          `Warmup ${res.data.warmup_enabled ? "enabled" : "disabled"} for this account.`,
+          "success"
+        );
+      } else {
+        addToast("Failed to update warmup status.", "error");
       }
     } catch (err) {
       console.error("Failed to toggle warmup", err);
+      addToast("Failed to toggle warmup", "error");
+    } finally {
+      setTogglingWarmupId(null);
     }
   };
 
-  const handleDeleteAccount = async (id: number) => {
-    if (!confirm("Are you sure you want to remove this email account? This will halt all active campaigns using it.")) return;
+  const handleUpdateLimit = async (id: number, newLimit: number) => {
+    setUpdatingLimitId(id);
     try {
-      await api.delete(`/email-accounts/${id}`);
-      setAccounts(prev => prev.filter(a => a.id !== id));
+      await api.patch(`/email-accounts/${id}/limit`, { daily_limit: newLimit });
+      setAccounts(prev => prev.map(a => a.id === id ? { ...a, daily_limit: newLimit } : a));
+      addToast("Daily limit updated successfully", "success");
+    } catch (err) {
+      console.error("Failed to update daily limit", err);
+      addToast("Failed to update daily limit", "error");
+    } finally {
+      setUpdatingLimitId(null);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    if (confirmDeleteId === null) return;
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/email-accounts/${confirmDeleteId}`);
+      setAccounts(prev => prev.filter(a => a.id !== confirmDeleteId));
       addToast("Email account removed successfully", "success");
     } catch (err) {
+      console.error("Failed to remove email sender", err);
       addToast("Failed to remove email sender", "error");
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDeleteId(null);
     }
   };
 
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validationError = validateEmailFormat(email);
+    if (validationError) {
+      setEmailError(validationError);
+      return;
+    }
+
     setModalLoading(true);
     try {
       await api.post("/email-accounts", {
@@ -198,9 +248,14 @@ export default function EmailAccountsPage() {
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Warmup</span>
                 <button 
                   onClick={() => handleToggleWarmup(acc.id)}
-                  className={`flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full border transition-all ${acc.warmup_enabled ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-muted text-muted-foreground border-transparent hover:text-foreground'}`}
+                  disabled={togglingWarmupId === acc.id}
+                  className={`flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full border transition-all ${acc.warmup_enabled ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-muted text-muted-foreground border-transparent hover:text-foreground'} ${togglingWarmupId === acc.id ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
-                  <Flame className="w-3.5 h-3.5" /> 
+                  {togglingWarmupId === acc.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Flame className="w-3.5 h-3.5" />
+                  )}
                   {acc.warmup_enabled ? "Warmup 🔥" : "Inactive"}
                 </button>
               </div>
@@ -209,26 +264,16 @@ export default function EmailAccountsPage() {
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Limit</span>
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={async () => {
-                      const newLimit = Math.max(1, acc.daily_limit - 10);
-                      try {
-                        await api.patch(`/email-accounts/${acc.id}/limit`, { daily_limit: newLimit });
-                        setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, daily_limit: newLimit } : a));
-                      } catch {}
-                    }}
-                    className="w-6 h-6 rounded-md bg-muted hover:bg-red-500/20 hover:text-red-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors"
+                    onClick={() => handleUpdateLimit(acc.id, Math.max(1, acc.daily_limit - 10))}
+                    disabled={updatingLimitId === acc.id}
+                    className="w-6 h-6 rounded-md bg-muted hover:bg-red-500/20 hover:text-red-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Decrease limit"
                   >−</button>
                   <span className="text-sm font-extrabold text-foreground min-w-[60px] text-center">{acc.sent_today} / {acc.daily_limit}</span>
                   <button
-                    onClick={async () => {
-                      const newLimit = Math.min(500, acc.daily_limit + 10);
-                      try {
-                        await api.patch(`/email-accounts/${acc.id}/limit`, { daily_limit: newLimit });
-                        setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, daily_limit: newLimit } : a));
-                      } catch {}
-                    }}
-                    className="w-6 h-6 rounded-md bg-muted hover:bg-green-500/20 hover:text-green-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors"
+                    onClick={() => handleUpdateLimit(acc.id, Math.min(500, acc.daily_limit + 10))}
+                    disabled={updatingLimitId === acc.id}
+                    className="w-6 h-6 rounded-md bg-muted hover:bg-green-500/20 hover:text-green-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Increase limit"
                   >+</button>
                 </div>
@@ -243,7 +288,7 @@ export default function EmailAccountsPage() {
                   <Power className="w-5 h-5" />
                 </button>
                 <button 
-                  onClick={() => handleDeleteAccount(acc.id)}
+                  onClick={() => setConfirmDeleteId(acc.id)}
                   className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-colors" 
                   title="Remove Account"
                 >
@@ -326,10 +371,19 @@ export default function EmailAccountsPage() {
                         type="email" 
                         required
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) {
+                            setEmailError(validateEmailFormat(e.target.value));
+                          }
+                        }}
+                        onBlur={() => setEmailError(validateEmailFormat(email))}
                         placeholder="rachit@company.com"
                         className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-primary text-foreground"
                       />
+                      {emailError && (
+                        <p className="text-xs text-red-500 mt-1">{emailError}</p>
+                      )}
                     </div>
                   </div>
 
@@ -420,6 +474,20 @@ export default function EmailAccountsPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={confirmDeleteId !== null}
+        title="Delete Email Sender"
+        description={
+          `Are you sure you want to remove this email account? This will halt all active campaigns using it.`
+        }
+        confirmText="Remove"
+        cancelText="Cancel"
+        destructive
+        isLoading={deleteLoading}
+        onConfirm={handleConfirmDeleteAccount}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

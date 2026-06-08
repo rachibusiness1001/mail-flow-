@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import api, { withRetry } from "@/lib/api";
 import AddLeadsModal from "@/components/AddLeadsModal";
+import { useToast } from "@/components/Toast";
 
 type FollowUp = {
   subject: string;
@@ -56,6 +57,7 @@ export default function CampaignEditor() {
   
   const [saving, setSaving] = useState(false);
   const router = useRouter();
+  const { addToast } = useToast();
 
   const daysOfWeek = [
     { key: "0", label: "M", title: "Monday" },
@@ -142,10 +144,32 @@ export default function CampaignEditor() {
   };
 
   const handleSave = async (status: 'draft' | 'running' = 'draft') => {
-    if (!name) {
-      alert("Campaign name is required");
+    // Validation
+    if (!name.trim()) {
+      addToast("Campaign name is required", "error");
       return;
     }
+    
+    if (!subjectA.trim()) {
+      addToast("Email subject line (Variant A) is required", "error");
+      return;
+    }
+    
+    if (!bodyA.trim()) {
+      addToast("Email message body (Variant A) is required", "error");
+      return;
+    }
+    
+    if (status === 'running' && accounts.length === 0) {
+      addToast("No email accounts connected. Please add an email account first.", "error");
+      return;
+    }
+    
+    if (status === 'running' && !selectedAccount) {
+      addToast("Please select an email account to send from", "error");
+      return;
+    }
+    
     setSaving(true);
     try {
       const payload = {
@@ -180,19 +204,32 @@ export default function CampaignEditor() {
       
       if (status === 'running') {
         // Start campaign immediately
-        await withRetry(() => api.post(`/campaigns/${targetId}/start`));
+        try {
+          await withRetry(() => api.post(`/campaigns/${targetId}/start`));
+          addToast("Campaign launched successfully!", "success");
+        } catch (launchErr: any) {
+          const errorMsg = launchErr.response?.data?.error || "Failed to launch campaign";
+          addToast(errorMsg, "error");
+          setSaving(false);
+          return;
+        }
       }
       
       // Show modal for new campaigns (only in draft mode, not when running)
       if (isNewCampaign && status === 'draft') {
         setNewCampaignId(targetId ? Number(targetId) : null);
         setShowAddLeadsModal(true);
+        addToast("Campaign saved as draft! Now add some leads to send to.", "success");
+      } else if (status === 'draft') {
+        addToast("Campaign saved as draft", "success");
+        router.push(`/campaigns/${targetId}`);
       } else {
         router.push(`/campaigns/${targetId}`);
       }
     } catch (err: any) {
       console.error("Failed to save campaign", err);
-      alert(err.response?.data?.error || "Failed to save campaign. Make sure all fields are valid.");
+      const errorMsg = err.response?.data?.error || "Failed to save campaign. Please check all fields and try again.";
+      addToast(errorMsg, "error");
     } finally {
       setSaving(false);
     }

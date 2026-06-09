@@ -77,9 +77,16 @@ def upload_leads():
     if not data or not data.get('campaign_id') or not data.get('leads'):
         return jsonify({'error': 'Missing campaign_id or leads data'}), 400
         
-    campaign = Campaign.query.filter_by(id=data['campaign_id'], user_id=user_id, workspace_id=active_ws_id).first()
+    from sqlalchemy import or_
+    campaign = Campaign.query.filter(
+        Campaign.id == data['campaign_id'],
+        Campaign.user_id == user_id,
+        or_(Campaign.workspace_id == active_ws_id, Campaign.workspace_id.is_(None))
+    ).first()
     if not campaign:
         return jsonify({'error': 'Campaign not found'}), 404
+    if campaign.workspace_id is None:
+        campaign.workspace_id = active_ws_id
         
     leads_created = 0
     for l_data in data['leads']:

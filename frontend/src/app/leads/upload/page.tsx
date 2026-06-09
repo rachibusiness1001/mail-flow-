@@ -15,12 +15,15 @@ type Campaign = {
 export default function UploadLeadsPage() {
   const searchParams = useSearchParams();
   const campaignIdParam = searchParams.get("campaign_id");
+  const campaignIdFromUrl = campaignIdParam ? Number(campaignIdParam) : null;
   const launchParam = searchParams.get("launch");
   const shouldLaunch = launchParam === "1";
 
   const [step, setStep] = useState(1); // 1 = Upload, 2 = Map, 3 = Success
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [selectedCampaignId, setSelectedCampaignId] = useState(
+    campaignIdFromUrl && !Number.isNaN(campaignIdFromUrl) ? String(campaignIdFromUrl) : ""
+  );
   const [launched, setLaunched] = useState(false);
   
   // File details
@@ -44,17 +47,18 @@ export default function UploadLeadsPage() {
       try {
         const res = await api.get("/campaigns");
         setCampaigns(res.data.campaigns);
-        if (campaignIdParam) {
-          setSelectedCampaignId(campaignIdParam);
+        if (campaignIdFromUrl && !Number.isNaN(campaignIdFromUrl)) {
+          const matched = res.data.campaigns.find((c: Campaign) => c.id === campaignIdFromUrl);
+          setSelectedCampaignId(matched ? String(matched.id) : String(campaignIdFromUrl));
         } else if (res.data.campaigns.length > 0) {
-          setSelectedCampaignId(res.data.campaigns[0].id.toString());
+          setSelectedCampaignId(String(res.data.campaigns[0].id));
         }
       } catch (err) {
         console.error("Failed to load campaigns", err);
       }
     };
     fetchCampaigns();
-  }, [campaignIdParam]);
+  }, [campaignIdFromUrl]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -97,7 +101,8 @@ export default function UploadLeadsPage() {
   };
 
   const handleImport = async () => {
-    if (!selectedCampaignId) {
+    const campaignId = Number(selectedCampaignId);
+    if (!selectedCampaignId || Number.isNaN(campaignId)) {
       alert("Please select a campaign first!");
       return;
     }
@@ -127,14 +132,26 @@ export default function UploadLeadsPage() {
     
     setLoading(true);
     try {
-      await api.post("/leads/upload", {
-        campaign_id: parseInt(selectedCampaignId),
-        leads: leadsList
-      });
+      const endpoint = `/campaigns/${campaignId}/leads`;
+      const formData = new FormData();
+      const csvHeader = "email,first_name,last_name,company\n";
+      const csvRows = leadsList
+        .map((lead) =>
+          [lead.email, lead.first_name, lead.last_name, lead.company]
+            .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+            .join(",")
+        )
+        .join("\n");
+      const csvBlob = new Blob([csvHeader + csvRows], { type: "text/csv" });
+      formData.append("file", csvBlob, fileName || "leads.csv");
+      formData.append("leads", JSON.stringify(leadsList));
+
+      console.log("Lead upload request", { campaignId, endpoint, leadCount: leadsList.length });
+      await api.post(endpoint, formData);
 
       if (shouldLaunch) {
         try {
-          await withRetry(() => api.post(`/campaigns/${selectedCampaignId}/start`));
+          await withRetry(() => api.post(`/campaigns/${campaignId}/start`));
           setLaunched(true);
           addToast("Leads imported and campaign launched successfully!", "success");
         } catch (launchErr: any) {
@@ -250,7 +267,7 @@ export default function UploadLeadsPage() {
                   className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm font-semibold outline-none focus:border-primary text-foreground"
                 >
                   {campaigns.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={String(c.id)}>{c.name}</option>
                   ))}
                 </select>
               )}

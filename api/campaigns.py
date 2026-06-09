@@ -1,8 +1,24 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+import csv
+import io
+import json
 
 campaigns_bp = Blueprint('campaigns', __name__)
+
+def _campaign_query_for_user(campaign_id, user_id, active_ws_id):
+    from app import Campaign
+    from sqlalchemy import or_
+    return Campaign.query.filter(
+        Campaign.id == campaign_id,
+        Campaign.user_id == user_id,
+        or_(Campaign.workspace_id == active_ws_id, Campaign.workspace_id.is_(None))
+    ).first()
+
+def _ensure_campaign_workspace(campaign, active_ws_id):
+    if campaign.workspace_id is None:
+        campaign.workspace_id = active_ws_id
 
 @campaigns_bp.route('', methods=['GET'])
 @jwt_required()
@@ -10,7 +26,11 @@ def get_campaigns():
     from app import db, Campaign, get_active_workspace_id
     user_id = int(get_jwt_identity())
     active_ws_id = get_active_workspace_id(user_id)
-    campaigns = Campaign.query.filter_by(user_id=user_id, workspace_id=active_ws_id).order_by(Campaign.created_at.desc()).all()
+    from sqlalchemy import or_
+    campaigns = Campaign.query.filter(
+        Campaign.user_id == user_id,
+        or_(Campaign.workspace_id == active_ws_id, Campaign.workspace_id.is_(None))
+    ).order_by(Campaign.created_at.desc()).all()
     
     result = []
     for c in campaigns:
@@ -93,7 +113,7 @@ def get_campaign(id):
     from app import db, Campaign, get_active_workspace_id
     user_id = int(get_jwt_identity())
     active_ws_id = get_active_workspace_id(user_id)
-    c = Campaign.query.filter_by(id=id, user_id=user_id, workspace_id=active_ws_id).first()
+    c = _campaign_query_for_user(id, user_id, active_ws_id)
     
     if not c:
         return jsonify({'error': 'Campaign not found'}), 404
@@ -210,6 +230,104 @@ def delete_campaign(id):
     db.session.commit()
     return jsonify({'message': 'Campaign deleted'}), 200
 
+@campaigns_bp.route('/<int:id>/leads', methods=['POST'])
+@jwt_required()
+def upload_campaign_leads(id):
+    from app import db, Lead, UploadHistory, get_active_workspace_id
+
+    user_id = int(get_jwt_identity())
+    active_ws_id = get_active_workspace_id(user_id)
+    campaign = _campaign_query_for_user(id, user_id, active_ws_id)
+
+    if not campaign:
+        return jsonify({'error': 'Campaign not found'}), 404
+
+    _ensure_campaign_workspace(campaign, active_ws_id)
+
+    leads_created = 0
+    upload_history = None
+
+    if 'file' in request.files and request.files['file'].filename:
+        file = request.files['file']
+        upload_history = UploadHistory(
+            user_id=user_id,
+            campaign_id=campaign.id,
+            filename=file.filename,
+            total=0,
+            invalid=0
+        )
+        db.session.add(upload_history)
+        db.session.flush()
+
+        stream = io.StringIO(file.stream.read().decode('utf-8', errors='ignore'))
+        reader = csv.DictReader(stream)
+        reader.fieldnames = [f.lower().strip() for f in (reader.fieldnames or [])]
+
+        for row in reader:
+            email_val = (
+                row.get('email')
+                or row.get('emails')
+                or row.get('email address')
+                or row.get('mail')
+                or ''
+            ).strip()
+            if not email_val or '@' not in email_val:
+                continue
+
+            first_name = (row.get('first_name') or row.get('first name') or '').strip()
+            last_name = (row.get('last_name') or row.get('last name') or '').strip()
+            name = (row.get('name') or f'{first_name} {last_name}'.strip()).strip()
+            company = (row.get('company') or row.get('organization') or '').strip()
+
+            db.session.add(Lead(
+                user_id=user_id,
+                workspace_id=active_ws_id,
+                email=email_val,
+                name=name,
+                company=company,
+                campaign_id=campaign.id,
+                upload_id=upload_history.id,
+                status='pending'
+            ))
+            leads_created += 1
+
+        upload_history.total = leads_created
+    elif request.form.get('leads'):
+        try:
+            leads_data = json.loads(request.form.get('leads'))
+        except (TypeError, json.JSONDecodeError):
+            return jsonify({'error': 'Invalid leads data'}), 400
+
+        if not isinstance(leads_data, list) or len(leads_data) == 0:
+            return jsonify({'error': 'Missing leads data'}), 400
+
+        for l_data in leads_data:
+            if not l_data.get('email'):
+                continue
+
+            db.session.add(Lead(
+                user_id=user_id,
+                workspace_id=active_ws_id,
+                email=l_data['email'],
+                name=l_data.get('name', f"{l_data.get('first_name', '')} {l_data.get('last_name', '')}".strip()),
+                company=l_data.get('company', ''),
+                campaign_id=campaign.id,
+                status='pending'
+            ))
+            leads_created += 1
+    else:
+        return jsonify({'error': 'Missing file or leads data'}), 400
+
+    if leads_created == 0:
+        if upload_history:
+            db.session.rollback()
+        return jsonify({'error': 'No valid leads found in upload'}), 400
+
+    campaign.total_leads += leads_created
+    db.session.commit()
+
+    return jsonify({'message': f'Successfully imported {leads_created} leads.'}), 201
+
 @campaigns_bp.route('/<int:id>/start', methods=['POST'])
 @jwt_required()
 def start_campaign(id):
@@ -218,7 +336,10 @@ def start_campaign(id):
     
     uid = int(get_jwt_identity())
     active_ws_id = get_active_workspace_id(uid)
-    campaign = Campaign.query.filter_by(id=id, user_id=uid, workspace_id=active_ws_id).first_or_404()
+    campaign = _campaign_query_for_user(id, uid, active_ws_id)
+    if not campaign:
+        return jsonify({'error': 'Campaign not found'}), 404
+    _ensure_campaign_workspace(campaign, active_ws_id)
     if campaign.status == 'running':
         return jsonify({'error': 'Campaign is already running'}), 400
         
@@ -242,7 +363,10 @@ def pause_campaign(id):
     from app import db, Campaign, running_campaigns, get_active_workspace_id
     uid = int(get_jwt_identity())
     active_ws_id = get_active_workspace_id(uid)
-    campaign = Campaign.query.filter_by(id=id, user_id=uid, workspace_id=active_ws_id).first_or_404()
+    campaign = _campaign_query_for_user(id, uid, active_ws_id)
+    if not campaign:
+        return jsonify({'error': 'Campaign not found'}), 404
+    _ensure_campaign_workspace(campaign, active_ws_id)
     running_campaigns[id] = False
     campaign.status = 'paused'
     db.session.commit()

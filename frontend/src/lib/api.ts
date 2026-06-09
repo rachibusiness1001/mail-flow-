@@ -42,6 +42,11 @@ api.interceptors.request.use(
         config.headers['X-Workspace-ID'] = workspaceId;
       }
     }
+
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error) => {

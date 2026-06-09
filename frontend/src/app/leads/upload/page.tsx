@@ -3,7 +3,9 @@ import { motion } from "framer-motion";
 import { UploadCloud, CheckCircle2, ArrowRight, FileText, X, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import { useSearchParams } from "next/navigation";
+import api, { withRetry } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 
 type Campaign = {
   id: number;
@@ -11,9 +13,15 @@ type Campaign = {
 };
 
 export default function UploadLeadsPage() {
+  const searchParams = useSearchParams();
+  const campaignIdParam = searchParams.get("campaign_id");
+  const launchParam = searchParams.get("launch");
+  const shouldLaunch = launchParam === "1";
+
   const [step, setStep] = useState(1); // 1 = Upload, 2 = Map, 3 = Success
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [launched, setLaunched] = useState(false);
   
   // File details
   const [fileName, setFileName] = useState("");
@@ -28,6 +36,7 @@ export default function UploadLeadsPage() {
   const [companyCol, setCompanyCol] = useState("");
   
   const [loading, setLoading] = useState(false);
+  const { addToast } = useToast();
 
   useEffect(() => {
     // Fetch campaigns for mapping
@@ -35,7 +44,9 @@ export default function UploadLeadsPage() {
       try {
         const res = await api.get("/campaigns");
         setCampaigns(res.data.campaigns);
-        if (res.data.campaigns.length > 0) {
+        if (campaignIdParam) {
+          setSelectedCampaignId(campaignIdParam);
+        } else if (res.data.campaigns.length > 0) {
           setSelectedCampaignId(res.data.campaigns[0].id.toString());
         }
       } catch (err) {
@@ -43,7 +54,7 @@ export default function UploadLeadsPage() {
       }
     };
     fetchCampaigns();
-  }, []);
+  }, [campaignIdParam]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -120,6 +131,18 @@ export default function UploadLeadsPage() {
         campaign_id: parseInt(selectedCampaignId),
         leads: leadsList
       });
+
+      if (shouldLaunch) {
+        try {
+          await withRetry(() => api.post(`/campaigns/${selectedCampaignId}/start`));
+          setLaunched(true);
+          addToast("Leads imported and campaign launched successfully!", "success");
+        } catch (launchErr: any) {
+          const errorMsg = launchErr.response?.data?.error || "Leads imported but failed to launch campaign";
+          addToast(errorMsg, "error");
+        }
+      }
+
       setStep(3);
     } catch (err: any) {
       console.error(err);
@@ -278,11 +301,11 @@ export default function UploadLeadsPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Importing...
+                    {shouldLaunch ? "Importing & Launching..." : "Importing..."}
                   </>
                 ) : (
                   <>
-                    Start Import
+                    {shouldLaunch ? "Import & Launch" : "Import Leads"}
                   </>
                 )}
               </button>
@@ -302,15 +325,28 @@ export default function UploadLeadsPage() {
             </motion.div>
             
             <div className="space-y-2">
-              <h3 className="text-3xl font-extrabold text-foreground">Import Complete!</h3>
+              <h3 className="text-3xl font-extrabold text-foreground">
+                {shouldLaunch && launched ? "Import & Launch Complete!" : "Import Complete!"}
+              </h3>
               <p className="text-muted-foreground max-w-sm mx-auto font-medium">
-                Successfully imported your leads into MailFlow. Sequence delivery will commence automatically according to your sending schedule.
+                {shouldLaunch && launched
+                  ? "Your leads have been imported and the campaign is now running. Sequence delivery will commence according to your sending schedule."
+                  : shouldLaunch
+                    ? "Your leads have been imported. The campaign could not be launched automatically — you can start it from the campaign page."
+                    : "Successfully imported your leads into MailFlow. Sequence delivery will commence automatically according to your sending schedule."}
               </p>
             </div>
             
-            <Link href="/leads" className="bg-primary hover:bg-primary/95 text-white px-8 py-3 rounded-full font-bold transition-all inline-block">
-              Go to Leads Database
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {shouldLaunch && selectedCampaignId && (
+                <Link href={`/campaigns/${selectedCampaignId}`} className="bg-primary hover:bg-primary/95 text-white px-8 py-3 rounded-full font-bold transition-all inline-block">
+                  View Campaign
+                </Link>
+              )}
+              <Link href="/leads" className={`${shouldLaunch && selectedCampaignId ? "border border-border hover:bg-muted text-foreground" : "bg-primary hover:bg-primary/95 text-white"} px-8 py-3 rounded-full font-bold transition-all inline-block`}>
+                Go to Leads Database
+              </Link>
+            </div>
           </div>
         )}
       </motion.div>

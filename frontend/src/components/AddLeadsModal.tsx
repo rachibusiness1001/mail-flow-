@@ -6,10 +6,12 @@ import Link from "next/link";
 type AddLeadsModalProps = {
   campaignId: number;
   campaignName: string;
+  pendingLaunch?: boolean;
   onClose?: () => void;
 };
 
-export default function AddLeadsModal({ campaignId, campaignName, onClose }: AddLeadsModalProps) {
+export default function AddLeadsModal({ campaignId, campaignName, pendingLaunch, onClose }: AddLeadsModalProps) {
+  const uploadUrl = `/leads/upload?campaign_id=${campaignId}${pendingLaunch ? "&launch=1" : ""}`;
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -60,10 +62,10 @@ export default function AddLeadsModal({ campaignId, campaignName, onClose }: Add
             Skip for Now
           </button>
           <Link 
-            href={`/leads/upload?campaign_id=${campaignId}`}
+            href={uploadUrl}
             className="flex-1 bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
           >
-            Add Leads
+            {pendingLaunch ? "Add Leads & Launch" : "Add Leads"}
             <ChevronRight className="w-4 h-4" />
           </Link>
         </div>

@@ -53,6 +53,7 @@ export default function CampaignEditor() {
   // Add Leads Modal State
   const [showAddLeadsModal, setShowAddLeadsModal] = useState(false);
   const [newCampaignId, setNewCampaignId] = useState<number | null>(null);
+  const [pendingLaunch, setPendingLaunch] = useState(false);
 
   
   const [saving, setSaving] = useState(false);
@@ -202,28 +203,28 @@ export default function CampaignEditor() {
         isNewCampaign = true;
       }
       
-      if (status === 'running') {
-        // Start campaign immediately
+      if (isNewCampaign) {
+        setNewCampaignId(targetId ? Number(targetId) : null);
+        if (status === 'running') {
+          setPendingLaunch(true);
+        }
+        setShowAddLeadsModal(true);
+        if (status === 'draft') {
+          addToast("Campaign saved as draft! Now add some leads to send to.", "success");
+        } else {
+          addToast("Campaign created! Add leads to launch your sequence.", "success");
+        }
+      } else if (status === 'running') {
         try {
           await withRetry(() => api.post(`/campaigns/${targetId}/start`));
           addToast("Campaign launched successfully!", "success");
+          router.push(`/campaigns/${targetId}`);
         } catch (launchErr: any) {
           const errorMsg = launchErr.response?.data?.error || "Failed to launch campaign";
           addToast(errorMsg, "error");
-          setSaving(false);
-          return;
         }
-      }
-      
-      // Show modal for new campaigns (only in draft mode, not when running)
-      if (isNewCampaign && status === 'draft') {
-        setNewCampaignId(targetId ? Number(targetId) : null);
-        setShowAddLeadsModal(true);
-        addToast("Campaign saved as draft! Now add some leads to send to.", "success");
-      } else if (status === 'draft') {
-        addToast("Campaign saved as draft", "success");
-        router.push(`/campaigns/${targetId}`);
       } else {
+        addToast("Campaign saved as draft", "success");
         router.push(`/campaigns/${targetId}`);
       }
     } catch (err: any) {
@@ -602,8 +603,19 @@ export default function CampaignEditor() {
           <AddLeadsModal 
             campaignId={newCampaignId}
             campaignName={name}
-            onClose={() => {
+            pendingLaunch={pendingLaunch}
+            onClose={async () => {
               setShowAddLeadsModal(false);
+              if (pendingLaunch && newCampaignId) {
+                try {
+                  await withRetry(() => api.post(`/campaigns/${newCampaignId}/start`));
+                  addToast("Campaign launched successfully!", "success");
+                } catch (launchErr: any) {
+                  const errorMsg = launchErr.response?.data?.error || "Failed to launch campaign";
+                  addToast(errorMsg, "error");
+                }
+                setPendingLaunch(false);
+              }
               router.push(`/campaigns/${newCampaignId}`);
             }}
           />

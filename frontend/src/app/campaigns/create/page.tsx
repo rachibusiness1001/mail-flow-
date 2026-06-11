@@ -21,7 +21,7 @@ type EmailAccount = {
 };
 
 export default function CampaignEditor() {
-  const [name, setName] = useState("New SaaS Outreach");
+  const [name, setName] = useState("");
   
   // Variant A
   const [subjectA, setSubjectA] = useState("");

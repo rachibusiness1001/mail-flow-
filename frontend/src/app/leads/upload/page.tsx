@@ -132,22 +132,13 @@ export default function UploadLeadsPage() {
     
     setLoading(true);
     try {
-      const endpoint = `/campaigns/${campaignId}/leads`;
-      const formData = new FormData();
-      const csvHeader = "email,first_name,last_name,company\n";
-      const csvRows = leadsList
-        .map((lead) =>
-          [lead.email, lead.first_name, lead.last_name, lead.company]
-            .map((value) => `"${String(value).replace(/"/g, '""')}"`)
-            .join(",")
-        )
-        .join("\n");
-      const csvBlob = new Blob([csvHeader + csvRows], { type: "text/csv" });
-      formData.append("file", csvBlob, fileName || "leads.csv");
-      formData.append("leads", JSON.stringify(leadsList));
-
+      const endpoint = `/leads/upload`;
       console.log("Lead upload request", { campaignId, endpoint, leadCount: leadsList.length });
-      await api.post(endpoint, formData);
+      
+      await api.post(endpoint, {
+        campaign_id: campaignId,
+        leads: leadsList
+      });
 
       if (shouldLaunch) {
         try {

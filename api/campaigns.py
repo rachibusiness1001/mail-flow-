@@ -224,8 +224,12 @@ def delete_campaign(id):
     if not c:
         return jsonify({'error': 'Not found'}), 404
         
-    # Delete followups first to avoid constraint failures
+    # Delete leads and upload history first to avoid constraint failures
+    from app import Lead, UploadHistory
+    Lead.query.filter_by(campaign_id=id).delete()
+    UploadHistory.query.filter_by(campaign_id=id).delete()
     FollowUp.query.filter_by(campaign_id=id).delete()
+    
     db.session.delete(c)
     db.session.commit()
     return jsonify({'message': 'Campaign deleted'}), 200

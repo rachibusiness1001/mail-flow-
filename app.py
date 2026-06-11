@@ -2238,6 +2238,7 @@ def auto_migrate():
                 "ALTER TABLE lead ADD COLUMN account_id INTEGER",
                 "ALTER TABLE lead ADD COLUMN message_id VARCHAR(200) DEFAULT ''",
                 "ALTER TABLE lead ADD COLUMN msg_references TEXT DEFAULT ''",
+                "ALTER TABLE lead ADD COLUMN upload_id INTEGER",
                 
                 # InboxReply Table
                 "ALTER TABLE inbox_reply ADD COLUMN thread_id VARCHAR(200) DEFAULT ''",

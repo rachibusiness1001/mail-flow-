@@ -251,7 +251,8 @@ export default function CampaignEditor() {
               type="text" 
               value={name} 
               onChange={(e) => setName(e.target.value)} 
-              className="bg-transparent border-none text-2xl font-extrabold text-foreground focus:outline-none focus:ring-0 p-0 m-0 w-full max-w-md"
+              placeholder="Campaign Name..."
+              className="bg-transparent border-none text-2xl font-extrabold text-foreground focus:outline-none focus:ring-0 p-0 m-0 w-full max-w-md placeholder:text-muted-foreground/40"
             />
           </div>
         </div>

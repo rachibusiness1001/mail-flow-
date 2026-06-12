@@ -540,8 +540,11 @@ def run_campaign(campaign_id, user_id):
         if not campaign: return
 
         # Schedule check - wait until scheduled_at
-        if campaign.scheduled_at and datetime.utcnow() < campaign.scheduled_at:
-            wait_secs = (campaign.scheduled_at - datetime.utcnow()).total_seconds()
+        while campaign.scheduled_at:
+            now_ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
+            if now_ist >= campaign.scheduled_at:
+                break
+            wait_secs = (campaign.scheduled_at - now_ist).total_seconds()
             time.sleep(min(wait_secs, 3600))  # max 1 hour wait per cycle
 
         campaign.status = 'running'
@@ -559,16 +562,16 @@ def run_campaign(campaign_id, user_id):
 
             # Working hours + days check
             if campaign.working_hours:
-                now_ist  = datetime.utcnow() + timedelta(hours=5, minutes=30)
-                now_hour = now_ist.hour
-                now_day  = now_ist.weekday()  # 0=Mon, 6=Sun
-                allowed_days = [int(d) for d in (campaign.work_days or '0,1,2,3,4').split(',') if d.strip()]
-                if now_day not in allowed_days:
+                while True:
+                    now_ist  = datetime.utcnow() + timedelta(hours=5, minutes=30)
+                    now_hour = now_ist.hour
+                    now_day  = now_ist.weekday()  # 0=Mon, 6=Sun
+                    allowed_days = [int(d) for d in (campaign.work_days or '0,1,2,3,4').split(',') if d.strip()]
+                    
+                    if now_day in allowed_days and campaign.work_start <= now_hour < campaign.work_end:
+                        break
+                        
                     time.sleep(300)
-                    continue
-                if now_hour < campaign.work_start or now_hour >= campaign.work_end:
-                    time.sleep(300)
-                    continue
 
             # Multi-Account Sender Rotation (Round-Robin)
             try:

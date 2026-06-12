@@ -28,19 +28,6 @@ _db_url = os.environ.get('DATABASE_URL', 'sqlite:///mailflow.db')
 if _db_url.startswith('postgres://'):
     _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
 
-# Dynamic fallback to SQLite if remote server is unreachable (sandbox/offline environment)
-if 'sqlite' not in _db_url:
-    try:
-        import urllib.parse
-        import socket
-        parsed = urllib.parse.urlparse(_db_url)
-        # Try quick connection check (2 second timeout)
-        s = socket.create_connection((parsed.hostname, parsed.port or 5432), timeout=2)
-        s.close()
-    except Exception:
-        print("[WARNING] Remote database is unreachable. Falling back to local SQLite database.")
-        _db_url = 'sqlite:///mailflow.db'
-
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True

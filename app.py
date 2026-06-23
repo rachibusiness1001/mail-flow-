@@ -657,6 +657,9 @@ def run_campaign(campaign_id, user_id):
         running_campaigns.pop(campaign_id, None)
 
 def run_followups_bg():
+    # Delay follow-ups by 5 minutes on server start to allow the reply-fetcher to sync old replies first!
+    import time
+    time.sleep(300)
     while True:
         try:
             with app.app_context():
@@ -668,6 +671,18 @@ def run_followups_bg():
                 for lead in pending:
                     if not lead.campaign_id: continue
                     campaign = Campaign.query.get(lead.campaign_id)
+                    if not campaign or campaign.status == 'paused':
+                        continue
+                        
+                    # Prevent multiple workers from sending the same followup simultaneously
+                    lead = db.session.query(Lead).with_for_update(skip_locked=True).filter_by(id=lead.id).first()
+                    if not lead or lead.status != 'sent_followup_pending' or (lead.next_followup_at and lead.next_followup_at > datetime.utcnow()):
+                        continue
+
+                    # Temporarily mark it so other workers ignore it during the send process
+                    lead.status = 'sending_followup'
+                    db.session.commit()
+
                     followups = FollowUp.query.filter_by(campaign_id=lead.campaign_id).order_by(FollowUp.step).all()
                     idx = lead.current_step - 1
                     if idx >= len(followups):
@@ -920,8 +935,9 @@ def fetch_replies_bg():
                             mail = imaplib.IMAP4_SSL(acc.imap_host)
                             mail.login(acc.email, acc.password)
                             mail.select('inbox')
-                            _, data = mail.search(None, 'UNSEEN')
-                            for num in data[0].split()[-20:]:
+                            _, data = mail.search(None, 'ALL')
+                            # Check the last 30 emails, regardless of read status, so we don't miss replies read on phone
+                            for num in data[0].split()[-30:]:
                                 _, msg_data = mail.fetch(num, '(RFC822)')
                                 msg        = email_lib.message_from_bytes(msg_data[0][1])
                                 from_email = email_lib.utils.parseaddr(msg['From'])[1]

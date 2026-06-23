@@ -14,7 +14,7 @@
         {% if campaigns %}
         <table class="table table-hover mb-0">
             <thead><tr>
-                <th>Campaign</th><th>Status</th><th>Sent</th><th>Failed</th><th>Total</th><th>Progress</th><th>Delay</th><th>Actions</th>
+                <th>Campaign</th><th>Status</th><th>Sent</th><th>Failed</th><th>Pending</th><th>Total</th><th>Progress</th><th>Delay</th><th>Actions</th>
             </tr></thead>
             <tbody>
             {% for c in campaigns %}
@@ -28,6 +28,7 @@
                 <td><span class="badge badge-{{ c.status }} px-2 py-1 rounded-pill">{{ c.status }}</span></td>
                 <td style="color:#22c55e">{{ c.sent_count }}</td>
                 <td style="color:#ef4444">{{ c.failed_count }}</td>
+                <td style="color:#eab308;font-weight:bold">{{ c.total_leads - c.sent_count - c.failed_count }}</td>
                 <td>{{ c.total_leads }}</td>
                 <td style="min-width:120px">
                     {% if c.total_leads > 0 %}

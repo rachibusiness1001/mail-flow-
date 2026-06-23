@@ -1496,8 +1496,17 @@ def pause_campaign(id):
 def delete_campaign(id):
     uid = current_user_id()
     c   = Campaign.query.filter_by(id=id, user_id=uid).first_or_404()
-    FollowUp.query.filter_by(campaign_id=id).delete()
-    Lead.query.filter_by(campaign_id=id).delete()
+    
+    UploadHistory.query.filter_by(campaign_id=id).delete(synchronize_session=False)
+    FollowUp.query.filter_by(campaign_id=id).delete(synchronize_session=False)
+    
+    # Detach InboxReplies from leads of this campaign so we don't violate Foreign Key constraints
+    lead_ids = [l.id for l in Lead.query.filter_by(campaign_id=id).all()]
+    if lead_ids:
+        InboxReply.query.filter(InboxReply.lead_id.in_(lead_ids)).update({'lead_id': None}, synchronize_session=False)
+        
+    Lead.query.filter_by(campaign_id=id).delete(synchronize_session=False)
+    
     db.session.delete(c)
     db.session.commit()
     flash('Deleted!', 'success')

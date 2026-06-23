@@ -2266,6 +2266,12 @@ def auto_migrate():
 
 auto_migrate()
 
+# Start background threads globally so they run in Gunicorn/production
+import os
+if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    threading.Thread(target=run_followups_bg, daemon=True).start()
+    threading.Thread(target=fetch_replies_bg, daemon=True).start()
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
@@ -2282,8 +2288,6 @@ if __name__ == '__main__':
             print("   Password: admin1234")
             print("   [WARNING] Please change the default password after login!")
             print("=" * 50)
-    threading.Thread(target=run_followups_bg, daemon=True).start()
-    threading.Thread(target=fetch_replies_bg, daemon=True).start()
     port = int(os.environ.get('PORT', 5000))
     print(f"\nMailFlow running -> http://localhost:{port}\n")
     app.run(debug=False, host='0.0.0.0', port=port, use_reloader=False)

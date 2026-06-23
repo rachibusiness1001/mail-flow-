@@ -144,6 +144,9 @@ def get_campaign(id):
         'name': c.name,
         'status': c.status,
         'sent': c.sent_count,
+        'failed': c.failed_count,
+        'total_leads': c.total_leads,
+        'pending': c.total_leads - c.sent_count - c.failed_count,
         'opens': c.open_count,
         'replies': c.reply_count,
         'openRate': round(open_rate, 1),
@@ -225,10 +228,15 @@ def delete_campaign(id):
         return jsonify({'error': 'Not found'}), 404
         
     # Delete leads and upload history first to avoid constraint failures
-    from app import Lead, UploadHistory
-    Lead.query.filter_by(campaign_id=id).delete()
-    UploadHistory.query.filter_by(campaign_id=id).delete()
-    FollowUp.query.filter_by(campaign_id=id).delete()
+    from app import Lead, UploadHistory, InboxReply
+    UploadHistory.query.filter_by(campaign_id=id).delete(synchronize_session=False)
+    FollowUp.query.filter_by(campaign_id=id).delete(synchronize_session=False)
+    
+    lead_ids = [l.id for l in Lead.query.filter_by(campaign_id=id).all()]
+    if lead_ids:
+        InboxReply.query.filter(InboxReply.lead_id.in_(lead_ids)).update({'lead_id': None}, synchronize_session=False)
+        
+    Lead.query.filter_by(campaign_id=id).delete(synchronize_session=False)
     
     db.session.delete(c)
     db.session.commit()

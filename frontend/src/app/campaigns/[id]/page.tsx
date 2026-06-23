@@ -179,27 +179,29 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-4"
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
       >
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Total Leads</p>
+          <h3 className="text-3xl font-extrabold text-foreground">{campaign.total_leads?.toLocaleString() || 0}</h3>
+        </div>
+        <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Pending</p>
+          <h3 className="text-3xl font-extrabold text-yellow-500">{campaign.pending?.toLocaleString() || 0}</h3>
+        </div>
+        <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Total Sent</p>
-          <h3 className="text-3xl font-extrabold text-foreground">{campaign.sent.toLocaleString()}</h3>
+          <h3 className="text-3xl font-extrabold text-green-500">{campaign.sent?.toLocaleString() || 0}</h3>
         </div>
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Open Rate</p>
-          <h3 className="text-3xl font-extrabold text-green-500">{campaign.openRate}%</h3>
+          <h3 className="text-3xl font-extrabold text-primary">{campaign.openRate}%</h3>
           <p className="text-xs text-muted-foreground mt-1">{campaign.opens} opens</p>
         </div>
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Reply Rate</p>
-          <h3 className="text-3xl font-extrabold text-primary">{campaign.replyRate}%</h3>
+          <h3 className="text-3xl font-extrabold text-indigo-400">{campaign.replyRate}%</h3>
           <p className="text-xs text-muted-foreground mt-1">{campaign.replies} replies</p>
-        </div>
-        <div className="bg-card border border-border p-6 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 text-muted-foreground">
-          <SplitSquareHorizontal className={`w-6 h-6 ${campaign.ab_enabled ? 'text-indigo-400' : 'opacity-40'}`} />
-          <span className="font-bold text-xs">
-            {campaign.ab_enabled ? "A/B Variant Active" : "No A/B Variant"}
-          </span>
         </div>
       </motion.div>
 

@@ -21,6 +21,9 @@ type Campaign = {
   name: string;
   status: string;
   sent: number;
+  failed?: number;
+  total_leads?: number;
+  pending?: number;
   opens: number;
   replies: number;
   openRate: number;

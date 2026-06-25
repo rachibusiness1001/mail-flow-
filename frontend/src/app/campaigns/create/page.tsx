@@ -1,6 +1,6 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { Save, Play, Clock, Users, ArrowLeft, Mail, SplitSquareHorizontal, Trash2, ShieldAlert, Loader2, Calendar } from "lucide-react";
+import { Save, Play, Clock, Users, ArrowLeft, Mail, SplitSquareHorizontal, Trash2, ShieldAlert, Loader2, Calendar, MousePointerClick } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

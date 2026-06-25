@@ -43,6 +43,7 @@ def get_campaigns():
             'name': c.name,
             'status': c.status,
             'sent': c.sent_count,
+            'send_limit': c.send_limit,
             'openRate': round(open_rate, 1),
             'replyRate': round(reply_rate, 1),
             'lastActive': c.created_at.strftime("%b %d, %Y") if c.created_at else "Outreach"
@@ -87,6 +88,7 @@ def create_campaign():
         work_end=int(data.get('work_end', 18)),
         work_days=data.get('work_days', '0,1,2,3,4'),
         account_ids=data.get('account_ids', ''),
+        send_limit=int(data.get('send_limit') or 0),
         scheduled_at=scheduled_dt,
         status='draft'
     )
@@ -164,6 +166,7 @@ def get_campaign(id):
         'work_end': c.work_end,
         'work_days': c.work_days,
         'account_ids': c.account_ids,
+        'send_limit': c.send_limit,
         'scheduled_at': c.scheduled_at.isoformat() if (c.scheduled_at and hasattr(c.scheduled_at, 'isoformat')) else c.scheduled_at,
         'steps': steps
     }), 200
@@ -199,6 +202,8 @@ def update_campaign(id):
     c.work_end = int(data.get('work_end', c.work_end))
     c.work_days = data.get('work_days', c.work_days)
     c.account_ids = data.get('account_ids', c.account_ids)
+    if 'send_limit' in data:
+        c.send_limit = int(data.get('send_limit') or 0)
     c.scheduled_at = scheduled_dt
     
     # Delete existing followups and re-insert

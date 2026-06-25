@@ -21,6 +21,7 @@ type Campaign = {
   name: string;
   status: string;
   sent: number;
+  send_limit?: number;
   failed?: number;
   total_leads?: number;
   pending?: number;
@@ -182,7 +183,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
       >
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Total Leads</p>
@@ -195,6 +196,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Total Sent</p>
           <h3 className="text-3xl font-extrabold text-green-500">{campaign.sent?.toLocaleString() || 0}</h3>
+        </div>
+        <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Send Limit</p>
+          <h3 className="text-3xl font-extrabold text-blue-500">{campaign.send_limit && campaign.send_limit > 0 ? campaign.send_limit.toLocaleString() : 'No Limit'}</h3>
         </div>
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Open Rate</p>

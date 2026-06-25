@@ -48,6 +48,7 @@ export default function CampaignEditor() {
   // Connected Email Accounts
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState("");
+  const [sendLimit, setSendLimit] = useState(0);
   const [editId, setEditId] = useState<string | null>(null);
   
   // Add Leads Modal State
@@ -98,6 +99,7 @@ export default function CampaignEditor() {
           setWorkingHours(c.working_hours || false);
           setWorkStart(c.work_start || 9);
           setWorkEnd(c.work_end || 18);
+          setSendLimit(c.send_limit || 0);
           
           const days = c.work_days ? c.work_days.split(",") : ['0', '1', '2', '3', '4'];
           setSelectedDays(days);
@@ -186,6 +188,7 @@ export default function CampaignEditor() {
         working_hours: workingHours,
         work_start: workStart,
         work_end: workEnd,
+        send_limit: sendLimit,
         work_days: selectedDays.join(","),
         account_ids: selectedAccount,
         scheduled_at: scheduledAt || null,
@@ -471,6 +474,27 @@ export default function CampaignEditor() {
                 ))}
               </select>
             )}
+          </div>
+
+          {/* Send Limit Configuration */}
+          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
+            <h3 className="font-bold text-foreground flex items-center gap-2">
+              <MousePointerClick className="w-5 h-5 text-muted-foreground" />
+              Campaign Send Limit
+            </h3>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Maximum Emails to Send</label>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  min="0"
+                  value={sendLimit}
+                  onChange={(e) => setSendLimit(parseInt(e.target.value) || 0)}
+                  className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm font-semibold outline-none focus:border-primary text-foreground"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium mt-1">Set to 0 for unlimited. The campaign will automatically pause when it hits this number of sent emails.</p>
+            </div>
           </div>
 
           {/* Schedule Configuration */}

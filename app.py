@@ -134,6 +134,7 @@ class Campaign(db.Model):
     failed_count = db.Column(db.Integer, default=0)
     open_count   = db.Column(db.Integer, default=0)
     reply_count  = db.Column(db.Integer, default=0)
+    send_limit   = db.Column(db.Integer, default=0)
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
     # Working hours
     working_hours   = db.Column(db.Boolean, default=False)
@@ -546,6 +547,20 @@ def run_campaign(campaign_id, user_id):
                 return
             campaign = Campaign.query.get(campaign_id)
             if campaign.status != 'running': return
+            
+            # Campaign Limit Check
+            if campaign.send_limit and campaign.send_limit > 0:
+                if campaign.sent_count >= campaign.send_limit:
+                    campaign.status = 'completed'
+                    db.session.commit()
+                    running_campaigns.pop(campaign_id, None)
+                    return
+
+            # Lock the lead to prevent double sending across multiple workers
+            lead = db.session.query(Lead).with_for_update(skip_locked=True).filter_by(id=lead.id).first()
+            if not lead or lead.status != 'pending':
+                db.session.commit()
+                continue
 
             # Working hours + days check
             if campaign.working_hours:
@@ -652,6 +667,15 @@ def run_campaign(campaign_id, user_id):
                 campaign.failed_count += 1
             db.session.commit()
             time.sleep(random.randint(campaign.delay_min * 60, campaign.delay_max * 60))
+            
+            # Post-send check
+            if campaign.send_limit and campaign.send_limit > 0:
+                if campaign.sent_count >= campaign.send_limit:
+                    campaign.status = 'completed'
+                    db.session.commit()
+                    running_campaigns.pop(campaign_id, None)
+                    return
+                    
         campaign.status = 'completed'
         db.session.commit()
         running_campaigns.pop(campaign_id, None)
@@ -1424,6 +1448,7 @@ def new_campaign():
             work_end=int(request.form.get('work_end',18)),
             work_days=','.join(work_days_list) if work_days_list else '0,1,2,3,4',
             scheduled_at=scheduled_dt,
+            send_limit=int(request.form.get('send_limit', 0)),
             account_ids=','.join(request.form.getlist('account_ids[]'))
         )
         db.session.add(campaign)
@@ -2291,11 +2316,21 @@ def auto_migrate():
 
 auto_migrate()
 
+def auto_resume_campaigns():
+    with app.app_context():
+        campaigns = Campaign.query.filter_by(status='running').all()
+        for c in campaigns:
+            if not running_campaigns.get(c.id, False):
+                print(f"[AUTO-RESUME] Resuming campaign {c.id}")
+                running_campaigns[c.id] = True
+                threading.Thread(target=run_campaign, args=(c.id, c.user_id), daemon=True).start()
+
 # Start background threads globally so they run in Gunicorn/production
 import os
 if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
     threading.Thread(target=run_followups_bg, daemon=True).start()
     threading.Thread(target=fetch_replies_bg, daemon=True).start()
+    auto_resume_campaigns()
 
 if __name__ == '__main__':
     with app.app_context():
@@ -2340,6 +2375,7 @@ def edit_campaign(id):
         campaign.working_hours = 'working_hours' in request.form
         campaign.work_start    = int(request.form.get('work_start', 9))
         campaign.work_end      = int(request.form.get('work_end', 18))
+        campaign.send_limit    = int(request.form.get('send_limit', 0))
         acc_id = request.form.get('account_id','')
         campaign.account_id    = int(acc_id) if acc_id else None
         scheduled_str = request.form.get('scheduled_at','').strip()

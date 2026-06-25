@@ -140,6 +140,15 @@ def get_campaign(id):
     # Calculate open rate and reply rate safely
     open_rate = (c.open_count / c.sent_count * 100) if c.sent_count > 0 else 0
     reply_rate = (c.reply_count / c.sent_count * 100) if c.sent_count > 0 else 0
+    
+    from app import Lead
+    from datetime import datetime
+    followups_pending = Lead.query.filter_by(campaign_id=c.id, status='sent_followup_pending').count()
+    followups_today = Lead.query.filter(
+        Lead.campaign_id == c.id, 
+        Lead.status == 'sent_followup_pending',
+        Lead.next_followup_at <= datetime.utcnow()
+    ).count()
         
     return jsonify({
         'id': c.id,
@@ -149,6 +158,8 @@ def get_campaign(id):
         'failed': c.failed_count,
         'total_leads': c.total_leads,
         'pending': c.total_leads - c.sent_count - c.failed_count,
+        'followups_pending': followups_pending,
+        'followups_today': followups_today,
         'opens': c.open_count,
         'replies': c.reply_count,
         'openRate': round(open_rate, 1),

@@ -25,6 +25,8 @@ type Campaign = {
   failed?: number;
   total_leads?: number;
   pending?: number;
+  followups_pending?: number;
+  followups_today?: number;
   opens: number;
   replies: number;
   openRate: number;
@@ -102,6 +104,23 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     } finally {
       setDeleteLoading(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handleUpdateLimit = async (delta: number) => {
+    if (!campaign) return;
+    const currentLimit = campaign.send_limit || 0;
+    const newLimit = Math.max(0, currentLimit + delta);
+    
+    // Optimistic update
+    setCampaign({ ...campaign, send_limit: newLimit });
+    
+    try {
+      await api.put(`/campaigns/${campaign.id}`, { send_limit: newLimit });
+    } catch (err) {
+      console.error("Failed to update limit", err);
+      setCampaign({ ...campaign, send_limit: currentLimit });
+      addToast("Failed to update limit", "error");
     }
   };
 
@@ -183,7 +202,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
+        className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4"
       >
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Total Leads</p>
@@ -197,9 +216,33 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Total Sent</p>
           <h3 className="text-3xl font-extrabold text-green-500">{campaign.sent?.toLocaleString() || 0}</h3>
         </div>
+        <div className="bg-card border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-center">
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2 text-center">LIMIT</p>
+          <div className="flex items-center justify-center gap-3">
+            <button 
+              onClick={() => handleUpdateLimit(-10)} 
+              className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-foreground font-bold hover:bg-muted/80 transition-colors"
+            >
+              -
+            </button>
+            <h3 className="text-2xl font-extrabold text-white">
+              {campaign.sent?.toLocaleString() || 0} / {campaign.send_limit && campaign.send_limit > 0 ? campaign.send_limit.toLocaleString() : '∞'}
+            </h3>
+            <button 
+              onClick={() => handleUpdateLimit(10)} 
+              className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-foreground font-bold hover:bg-muted/80 transition-colors"
+            >
+              +
+            </button>
+          </div>
+        </div>
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
-          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Send Limit</p>
-          <h3 className="text-3xl font-extrabold text-blue-500">{campaign.send_limit && campaign.send_limit > 0 ? campaign.send_limit.toLocaleString() : 'No Limit'}</h3>
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Followups Pending</p>
+          <h3 className="text-3xl font-extrabold text-orange-400">{campaign.followups_pending?.toLocaleString() || 0}</h3>
+        </div>
+        <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Followups Today</p>
+          <h3 className="text-3xl font-extrabold text-cyan-400">{campaign.followups_today?.toLocaleString() || 0}</h3>
         </div>
         <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Open Rate</p>

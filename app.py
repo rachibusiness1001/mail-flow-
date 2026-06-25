@@ -548,13 +548,38 @@ def run_campaign(campaign_id, user_id):
             campaign = Campaign.query.get(campaign_id)
             if campaign.status != 'running': return
             
-            # Campaign Limit Check
+            # Campaign Daily Limit Check
             if campaign.send_limit and campaign.send_limit > 0:
-                if campaign.sent_count >= campaign.send_limit:
-                    campaign.status = 'completed'
-                    db.session.commit()
-                    running_campaigns.pop(campaign_id, None)
-                    return
+                today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                sent_today = Lead.query.filter(
+                    Lead.campaign_id == campaign.id,
+                    Lead.sent_at >= today_start
+                ).count()
+                
+                if sent_today >= campaign.send_limit:
+                    print(f"Campaign {campaign.id} reached daily limit of {campaign.send_limit}. Sleeping...")
+                    while True:
+                        if not running_campaigns.get(campaign_id, False):
+                            c = Campaign.query.get(campaign_id)
+                            if c: c.status = 'paused'
+                            db.session.commit()
+                            return
+                            
+                        # Refresh campaign from DB to get the latest send_limit
+                        c = Campaign.query.get(campaign_id)
+                        if not c or c.status != 'running': return
+                        
+                        now = datetime.utcnow()
+                        sent_today_now = Lead.query.filter(
+                            Lead.campaign_id == campaign.id,
+                            Lead.sent_at >= today_start
+                        ).count()
+                        
+                        # Break if it's a new day OR if limit was increased
+                        if now.date() > today_start.date() or (c.send_limit > 0 and sent_today_now < c.send_limit):
+                            break
+                            
+                        time.sleep(60)
 
             # Lock the lead to prevent double sending across multiple workers
             lead = db.session.query(Lead).with_for_update(skip_locked=True).filter_by(id=lead.id).first()

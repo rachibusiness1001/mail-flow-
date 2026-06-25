@@ -25,6 +25,7 @@ type Campaign = {
   failed?: number;
   total_leads?: number;
   pending?: number;
+  sent_today?: number;
   followups_pending?: number;
   followups_today?: number;
   opens: number;
@@ -226,7 +227,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               -
             </button>
             <h3 className="text-2xl font-extrabold text-white">
-              {campaign.sent?.toLocaleString() || 0} / {campaign.send_limit && campaign.send_limit > 0 ? campaign.send_limit.toLocaleString() : '∞'}
+              {campaign.sent_today?.toLocaleString() || 0} / {campaign.send_limit && campaign.send_limit > 0 ? campaign.send_limit.toLocaleString() : '∞'}
             </h3>
             <button 
               onClick={() => handleUpdateLimit(10)} 

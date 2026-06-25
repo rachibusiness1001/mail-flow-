@@ -144,6 +144,13 @@ def get_campaign(id):
     from app import Lead
     from datetime import datetime
     followups_pending = Lead.query.filter_by(campaign_id=c.id, status='sent_followup_pending').count()
+    
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    sent_today = Lead.query.filter(
+        Lead.campaign_id == c.id,
+        Lead.sent_at >= today_start
+    ).count()
+    
     followups_today = Lead.query.filter(
         Lead.campaign_id == c.id, 
         Lead.status == 'sent_followup_pending',
@@ -155,6 +162,7 @@ def get_campaign(id):
         'name': c.name,
         'status': c.status,
         'sent': c.sent_count,
+        'sent_today': sent_today,
         'failed': c.failed_count,
         'total_leads': c.total_leads,
         'pending': c.total_leads - c.sent_count - c.failed_count,

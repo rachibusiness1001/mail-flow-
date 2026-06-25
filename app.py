@@ -695,7 +695,7 @@ def run_followups_bg():
                 for lead in pending:
                     if not lead.campaign_id: continue
                     campaign = Campaign.query.get(lead.campaign_id)
-                    if not campaign or campaign.status == 'paused':
+                    if not campaign or campaign.status in ['paused', 'draft']:
                         continue
                         
                     # Prevent multiple workers from sending the same followup simultaneously
@@ -762,6 +762,7 @@ def run_followups_bg():
                         account.sent_today  += 1
                         campaign.sent_count += 1
                         if lead.current_step - 1 < len(followups):
+                            lead.status           = 'sent_followup_pending'
                             lead.next_followup_at = datetime.utcnow() + timedelta(days=followups[lead.current_step - 1].wait_days)
                         else:
                             lead.status           = 'sent'
@@ -781,8 +782,8 @@ def fetch_gmail_api_replies(acc):
         # Fetch ALL messages (read + unread) with pagination
         all_messages = []
         page_token = None
-        for _ in range(3):  # max 3 pages = 60 messages
-            url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=20'
+        for _ in range(5):  # max 5 pages = 500 messages
+            url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=100'
             if page_token:
                 url += f'&pageToken={page_token}'
             req = urllib.request.Request(url)
@@ -890,6 +891,7 @@ def fetch_gmail_api_replies(acc):
                         c.reply_count += 1
                         if lead.ab_variant == 'A': c.reply_a += 1
                         elif lead.ab_variant == 'B': c.reply_b += 1
+                lead.next_followup_at = None
 
             reply = InboxReply(
                 user_id=acc.user_id,
@@ -960,8 +962,8 @@ def fetch_replies_bg():
                             mail.login(acc.email, acc.password)
                             mail.select('inbox')
                             _, data = mail.search(None, 'ALL')
-                            # Check the last 30 emails, regardless of read status, so we don't miss replies read on phone
-                            for num in data[0].split()[-30:]:
+                            # Check the last 500 emails, regardless of read status, so we don't miss replies read on phone
+                            for num in data[0].split()[-500:]:
                                 _, msg_data = mail.fetch(num, '(RFC822)')
                                 msg        = email_lib.message_from_bytes(msg_data[0][1])
                                 from_email = email_lib.utils.parseaddr(msg['From'])[1]

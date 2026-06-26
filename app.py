@@ -78,6 +78,7 @@ class Workspace(db.Model):
     plan         = db.Column(db.String(50), default='free') # free, pro, agency
     billing_status = db.Column(db.String(50), default='active')
     billing_cycle_end = db.Column(db.DateTime, nullable=True)
+    force_pause  = db.Column(db.Boolean, default=False)
 
 class WorkspaceMember(db.Model):
     id           = db.Column(db.Integer, primary_key=True)
@@ -548,6 +549,20 @@ def run_campaign(campaign_id, user_id):
             campaign = Campaign.query.get(campaign_id)
             if campaign.status != 'running': return
             
+            # Global Force Pause Check
+            if campaign.workspace_id:
+                ws = Workspace.query.get(campaign.workspace_id)
+                while ws and ws.force_pause:
+                    time.sleep(60)
+                    ws = Workspace.query.get(campaign.workspace_id)
+                    
+                    # Also check if campaign was paused manually while waiting
+                    if not running_campaigns.get(campaign_id, False):
+                        c = Campaign.query.get(campaign_id)
+                        if c: c.status = 'paused'
+                        db.session.commit()
+                        return
+            
             # Campaign Daily Limit Check
             if campaign.send_limit and campaign.send_limit > 0:
                 today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -557,8 +572,8 @@ def run_campaign(campaign_id, user_id):
                 ).count()
                 
                 if sent_today >= campaign.send_limit:
-                    print(f"Campaign {campaign.id} reached daily limit of {campaign.send_limit}. Pausing...")
-                    campaign.status = 'paused'
+                    print(f"Campaign {campaign.id} reached daily limit of {campaign.send_limit}. Completing for today...")
+                    campaign.status = 'completed'
                     db.session.commit()
                     running_campaigns.pop(campaign_id, None)
                     return
@@ -705,6 +720,12 @@ def run_followups_bg():
                     if not campaign or campaign.status in ['paused', 'draft']:
                         continue
                         
+                    # Global Force Pause Check
+                    if campaign.workspace_id:
+                        ws = Workspace.query.get(campaign.workspace_id)
+                        if ws and ws.force_pause:
+                            continue
+                            
                     # Prevent multiple workers from sending the same followup simultaneously
                     lead = db.session.query(Lead).with_for_update(skip_locked=True).filter_by(id=lead.id).first()
                     if not lead or lead.status != 'sent_followup_pending' or (lead.next_followup_at and lead.next_followup_at > datetime.utcnow()):

@@ -20,6 +20,7 @@ type WorkspaceDetails = {
   plan: string;
   role: string;
   billing_status: string;
+  force_pause: boolean;
 };
 
 export default function SettingsPage() {
@@ -29,6 +30,7 @@ export default function SettingsPage() {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [activeWsId, setActiveWsId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceDetails | null>(null);
+  const [togglingPause, setTogglingPause] = useState(false);
 
   // Invite states
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -58,6 +60,21 @@ export default function SettingsPage() {
       console.error("Failed to fetch workspace data", err);
     } finally {
       setLoadingMembers(false);
+    }
+  };
+
+  const handleToggleForcePause = async () => {
+    if (!activeWsId || !workspace || togglingPause) return;
+    try {
+      setTogglingPause(true);
+      const res = await api.post(`/workspaces/${activeWsId}/force_pause`, {
+        force_pause: !workspace.force_pause
+      });
+      setWorkspace({ ...workspace, force_pause: res.data.force_pause });
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to toggle global force pause.");
+    } finally {
+      setTogglingPause(false);
     }
   };
 
@@ -240,6 +257,45 @@ export default function SettingsPage() {
                 </div>
               ))
             )}
+          </div>
+        </section>
+
+        {/* System Controls Section */}
+        <section className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6 pb-6 border-b border-red-500/20">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-500/10 text-red-500 rounded-xl">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Global System Controls</h2>
+                <p className="text-sm text-muted-foreground">Emergency actions to pause all outgoing emails across the workspace.</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-background/50 border border-border rounded-xl">
+            <div>
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                Global Force Pause
+                {workspace?.force_pause && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">ACTIVE</span>}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-lg">
+                Instantly freeze all outgoing campaigns and follow-ups. Useful if your email accounts hit sending limits or you need to halt operations immediately.
+              </p>
+            </div>
+            <button 
+              onClick={handleToggleForcePause}
+              disabled={togglingPause}
+              className={`mt-4 sm:mt-0 px-6 py-2.5 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-2 ${
+                workspace?.force_pause 
+                  ? 'bg-green-500 hover:bg-green-600 text-white' 
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              {togglingPause ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {workspace?.force_pause ? 'Resume All Systems' : 'Force Pause Everything'}
+            </button>
           </div>
         </section>
 

@@ -84,7 +84,34 @@ def get_workspace(workspace_id):
         "name": ws.name,
         "plan": ws.plan,
         "role": member.role,
-        "billing_status": ws.billing_status
+        "billing_status": ws.billing_status,
+        "force_pause": ws.force_pause
+    }), 200
+
+@workspaces_bp.route('/<int:workspace_id>/force_pause', methods=['POST'])
+@jwt_required()
+def toggle_force_pause(workspace_id):
+    from app import db, Workspace, WorkspaceMember
+    current_user_id = int(get_jwt_identity())
+    
+    # Ensure user has access
+    member = WorkspaceMember.query.filter_by(workspace_id=workspace_id, user_id=current_user_id).first()
+    if not member:
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    data = request.get_json() or {}
+    force_pause = data.get('force_pause', False)
+    
+    ws = Workspace.query.get(workspace_id)
+    if not ws:
+        return jsonify({"error": "Workspace not found"}), 404
+        
+    ws.force_pause = force_pause
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "force_pause": ws.force_pause
     }), 200
 
 @workspaces_bp.route('/<int:workspace_id>/members', methods=['GET'])

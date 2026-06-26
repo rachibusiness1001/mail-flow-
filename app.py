@@ -688,11 +688,20 @@ def run_campaign(campaign_id, user_id):
                 lead.error_msg = error
                 campaign.failed_count += 1
             db.session.commit()
-            time.sleep(random.randint(campaign.delay_min * 60, campaign.delay_max * 60))
+            
+            d_min = min(campaign.delay_min, campaign.delay_max)
+            d_max = max(campaign.delay_min, campaign.delay_max)
+            time.sleep(random.randint(d_min * 60, d_max * 60))
             
             # Post-send check
             if campaign.send_limit and campaign.send_limit > 0:
-                if campaign.sent_count >= campaign.send_limit:
+                today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                sent_today = Lead.query.filter(
+                    Lead.campaign_id == campaign.id,
+                    Lead.sent_at >= today_start
+                ).count()
+                if sent_today >= campaign.send_limit:
+                    print(f"Campaign {campaign.id} reached daily limit of {campaign.send_limit}. Completing for today...")
                     campaign.status = 'completed'
                     db.session.commit()
                     running_campaigns.pop(campaign_id, None)

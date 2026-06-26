@@ -2322,6 +2322,9 @@ def auto_migrate():
                 # InboxTag Table
                 "ALTER TABLE inbox_tag ADD COLUMN position INTEGER DEFAULT 0",
                 
+                # Workspace Table
+                "ALTER TABLE workspace ADD COLUMN force_pause BOOLEAN DEFAULT FALSE",
+                
                 # Attachment Table fallback
                 "CREATE TABLE IF NOT EXISTS attachment (id INTEGER PRIMARY KEY AUTOINCREMENT, reply_id INTEGER, filename VARCHAR(255), filepath VARCHAR(500), mime_type VARCHAR(100), size INTEGER, FOREIGN KEY(reply_id) REFERENCES inbox_reply(id))"
             ]

@@ -289,12 +289,12 @@ export default function SettingsPage() {
               disabled={togglingPause}
               className={`mt-4 sm:mt-0 px-6 py-2.5 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-2 ${
                 workspace?.force_pause 
-                  ? 'bg-green-500 hover:bg-green-600 text-white' 
-                  : 'bg-red-500 hover:bg-red-600 text-white'
+                  ? 'bg-red-500 hover:bg-red-600 text-white' 
+                  : 'bg-green-500 hover:bg-green-600 text-white'
               }`}
             >
               {togglingPause ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {workspace?.force_pause ? 'Resume All Systems' : 'Force Pause Everything'}
+              {workspace?.force_pause ? 'System Paused - Click to Resume' : 'System Active - Click to Pause'}
             </button>
           </div>
         </section>

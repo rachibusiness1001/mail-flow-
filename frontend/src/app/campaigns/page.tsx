@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { Plus, Search, MoreHorizontal, Play, Pause, FileEdit, Trash2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Play, Pause, FileEdit, Trash2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -19,12 +19,19 @@ export default function CampaignsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isForcePaused, setIsForcePaused] = useState(false);
 
   useEffect(() => {
     const fetchCampaigns = async () => {
       try {
         const response = await api.get('/campaigns');
         setCampaigns(response.data.campaigns);
+        
+        const wsId = localStorage.getItem("active_workspace_id");
+        if (wsId) {
+          const wsResponse = await api.get(`/workspaces/${wsId}`);
+          setIsForcePaused(wsResponse.data.force_pause);
+        }
       } catch (error) {
         console.error("Failed to fetch campaigns", error);
       } finally {
@@ -59,7 +66,7 @@ export default function CampaignsPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="flex items-center gap-4 bg-card border border-border p-2 rounded-2xl shadow-sm"
+        className="flex items-center gap-4 bg-card border border-border p-2 rounded-2xl shadow-sm mb-6"
       >
         <div className="flex-1 flex items-center gap-3 px-3">
           <Search className="w-5 h-5 text-muted-foreground" />
@@ -73,12 +80,23 @@ export default function CampaignsPage() {
         </div>
       </motion.div>
 
+      {isForcePaused && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-500/10 border border-red-500/50 p-4 rounded-2xl mb-8 flex items-center justify-center gap-3 shadow-lg shadow-red-500/5"
+        >
+          <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />
+          <p className="text-red-500 font-bold text-lg">System is globally Force-Paused. Go to Settings to resume sending.</p>
+        </motion.div>
+      )}
+
       {/* Campaigns List */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="grid grid-cols-1 gap-4"
+        className={`grid grid-cols-1 gap-4 transition-all duration-500 ${isForcePaused ? 'opacity-40 blur-[2px] grayscale-[50%] pointer-events-none' : ''}`}
       >
         {filteredCampaigns.map((campaign, i) => (
           <Link href={`/campaigns/${campaign.id}`} key={campaign.id} className="block">

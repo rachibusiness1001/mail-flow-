@@ -260,25 +260,6 @@ export default function EmailAccountsPage() {
                 </button>
               </div>
               
-              <div className="flex flex-col items-center">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Limit</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => handleUpdateLimit(acc.id, Math.max(1, acc.daily_limit - 10))}
-                    disabled={updatingLimitId === acc.id}
-                    className="w-6 h-6 rounded-md bg-muted hover:bg-red-500/20 hover:text-red-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Decrease limit"
-                  >−</button>
-                  <span className="text-sm font-extrabold text-foreground min-w-[60px] text-center">{acc.sent_today} / {acc.daily_limit}</span>
-                  <button
-                    onClick={() => handleUpdateLimit(acc.id, Math.min(500, acc.daily_limit + 10))}
-                    disabled={updatingLimitId === acc.id}
-                    className="w-6 h-6 rounded-md bg-muted hover:bg-green-500/20 hover:text-green-400 text-muted-foreground flex items-center justify-center text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Increase limit"
-                  >+</button>
-                </div>
-              </div>
-              
               <div className="flex items-center gap-2 pl-4 border-l border-border/50">
                 <button 
                   onClick={() => handleToggleWarmup(acc.id)}

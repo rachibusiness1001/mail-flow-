@@ -379,9 +379,7 @@ def get_available_account(user_id):
             acc.sent_today = 0
             acc.last_reset = today
             db.session.commit()
-        limit = acc.warmup_limit if acc.warmup_enabled else acc.daily_limit
-        if acc.sent_today < limit:
-            return acc
+        return acc
     return None
 
 def send_via_gmail_api(access_token, to_email, subject, body, thread_id=None, message_id=None, tracking_id=None, references=None):
@@ -610,9 +608,6 @@ def run_campaign(campaign_id, user_id):
                                 account.sent_today = 0
                                 account.last_reset = today
                                 db.session.commit()
-                            limit = account.warmup_limit if account.warmup_enabled else account.daily_limit
-                            if account.sent_today >= limit:
-                                account = get_available_account(user_id)
                         else:
                             account = get_available_account(user_id)
                     else:

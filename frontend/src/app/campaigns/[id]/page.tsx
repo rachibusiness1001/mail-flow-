@@ -14,6 +14,7 @@ type Step = {
   subject: string;
   body: string;
   delay: number;
+  target_date?: string;
 };
 
 type Campaign = {
@@ -292,11 +293,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   )}
                 </div>
                 <div className="flex-1">
-                  {step.delay > 0 && (
+                  {step.target_date ? (
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold mb-4">
+                      <Clock className="w-3 h-3" /> Send on {new Date(step.target_date).toLocaleDateString()}
+                    </div>
+                  ) : step.delay > 0 ? (
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs font-bold mb-4">
                       <Clock className="w-3 h-3" /> Wait {step.delay} days
                     </div>
-                  )}
+                  ) : null}
                   <h4 className="font-bold text-foreground text-lg mb-2">{step.subject}</h4>
                   <p className="text-sm text-muted-foreground mb-4 line-clamp-3 whitespace-pre-line">{step.body || "(No email body defined)"}</p>
                 </div>

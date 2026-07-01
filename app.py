@@ -156,7 +156,8 @@ class FollowUp(db.Model):
     step        = db.Column(db.Integer, default=1)
     subject     = db.Column(db.String(500), nullable=False)
     body        = db.Column(db.Text, nullable=False)
-    wait_days   = db.Column(db.Integer, default=2)
+    wait_days   = db.Column(db.Integer, default=2) # Legacy fallback
+    target_date = db.Column(db.DateTime, nullable=True) # New calendar date for followups
 
 class Lead(db.Model):
     id               = db.Column(db.Integer, primary_key=True)
@@ -673,7 +674,14 @@ def run_campaign(campaign_id, user_id):
                 if variant == 'A': campaign.sent_a += 1
                 else:              campaign.sent_b += 1
                 if campaign.followups:
-                    lead.next_followup_at = datetime.utcnow() + timedelta(days=campaign.followups[0].wait_days)
+                    fu = campaign.followups[0]
+                    target = fu.target_date if fu.target_date else (datetime.utcnow() + timedelta(days=fu.wait_days))
+                    if target < datetime.utcnow():
+                        # Option A: Skip followup if date has already passed
+                        lead.status = 'sent'
+                        lead.next_followup_at = None
+                    else:
+                        lead.next_followup_at = target
                 # warmup day progress
                 if account.warmup_enabled:
                     account.warmup_day += 1
@@ -794,8 +802,14 @@ def run_followups_bg():
                         account.sent_today  += 1
                         campaign.sent_count += 1
                         if lead.current_step - 1 < len(followups):
-                            lead.status           = 'sent_followup_pending'
-                            lead.next_followup_at = datetime.utcnow() + timedelta(days=followups[lead.current_step - 1].wait_days)
+                            fu = followups[lead.current_step - 1]
+                            target = fu.target_date if fu.target_date else (datetime.utcnow() + timedelta(days=fu.wait_days))
+                            if target < datetime.utcnow():
+                                lead.status = 'sent'
+                                lead.next_followup_at = None
+                            else:
+                                lead.status           = 'sent_followup_pending'
+                                lead.next_followup_at = target
                         else:
                             lead.status           = 'sent'
                             lead.next_followup_at = None
@@ -2345,6 +2359,9 @@ def auto_migrate():
                 
                 # Workspace Table
                 "ALTER TABLE workspace ADD COLUMN force_pause BOOLEAN DEFAULT FALSE",
+                
+                # Calendar Followups migration
+                "ALTER TABLE follow_up ADD COLUMN target_date DATETIME",
                 
                 # Attachment Table fallback
                 "CREATE TABLE IF NOT EXISTS attachment (id INTEGER PRIMARY KEY AUTOINCREMENT, reply_id INTEGER, filename VARCHAR(255), filepath VARCHAR(500), mime_type VARCHAR(100), size INTEGER, FOREIGN KEY(reply_id) REFERENCES inbox_reply(id))"

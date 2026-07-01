@@ -98,12 +98,20 @@ def create_campaign():
     # Add follow-ups if provided
     followups = data.get('followups', [])
     for i, fu in enumerate(followups):
+        target_date_val = fu.get('target_date')
+        target_dt = None
+        if target_date_val:
+            try:
+                target_dt = datetime.fromisoformat(target_date_val.replace('Z', '+00:00'))
+            except Exception:
+                pass
         db.session.add(FollowUp(
             campaign_id=new_camp.id,
             step=i + 1,
             subject=fu.get('subject', ''),
             body=fu.get('body', ''),
-            wait_days=int(fu.get('delay', 2))
+            wait_days=int(fu.get('delay', 2)),
+            target_date=target_dt
         ))
     db.session.commit()
     
@@ -132,9 +140,11 @@ def get_campaign(id):
         steps.append({
             'id': fu.id,
             'type': 'email',
+            'step': fu.step,
             'subject': fu.subject,
             'body': fu.body,
-            'delay': fu.wait_days
+            'delay': fu.wait_days,
+            'target_date': fu.target_date.isoformat() if fu.target_date else None
         })
         
     # Calculate open rate and reply rate safely
@@ -230,12 +240,20 @@ def update_campaign(id):
     
     followups = data.get('followups', [])
     for i, fu in enumerate(followups):
+        target_date_val = fu.get('target_date')
+        target_dt = None
+        if target_date_val:
+            try:
+                target_dt = datetime.fromisoformat(target_date_val.replace('Z', '+00:00'))
+            except Exception:
+                pass
         db.session.add(FollowUp(
             campaign_id=id,
             step=i + 1,
             subject=fu.get('subject', ''),
             body=fu.get('body', ''),
-            wait_days=int(fu.get('delay', 2))
+            wait_days=int(fu.get('delay', 2)),
+            target_date=target_dt
         ))
     db.session.commit()
     

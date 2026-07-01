@@ -11,7 +11,8 @@ import { useToast } from "@/components/Toast";
 type FollowUp = {
   subject: string;
   body: string;
-  delay: number; // Wait days
+  delay: number; // Legacy wait days
+  target_date?: string; // Calendar date (YYYY-MM-DD)
 };
 
 type EmailAccount = {
@@ -135,7 +136,7 @@ export default function CampaignEditor() {
   }, []);
 
   const handleAddFollowup = () => {
-    setFollowups(prev => [...prev, { subject: `Follow-up Step ${prev.length + 1}`, body: "", delay: 2 }]);
+    setFollowups(prev => [...prev, { subject: `Follow-up Step ${prev.length + 1}`, body: "", delay: 2, target_date: "" }]);
   };
 
   const handleRemoveFollowup = (index: number) => {
@@ -395,18 +396,15 @@ export default function CampaignEditor() {
 
                   <div className="p-6 space-y-4">
                     <div className="flex items-center gap-4 bg-muted/20 border border-border p-4 rounded-2xl text-xs font-bold">
-                      <Clock className="w-5 h-5 text-primary flex-shrink-0" />
+                      <Calendar className="w-5 h-5 text-primary flex-shrink-0" />
                       <div className="flex items-center gap-2">
-                        <span>Send follow-up if no reply after</span>
+                        <span>Send follow-up on date</span>
                         <input 
-                          type="number" 
-                          min="1"
-                          max="90"
-                          value={fu.delay}
-                          onChange={(e) => handleFollowupChange(idx, 'delay', parseInt(e.target.value))}
-                          className="w-16 bg-background border border-border rounded-xl px-3 py-1.5 text-center text-foreground outline-none focus:border-primary font-extrabold text-sm"
+                          type="date" 
+                          value={fu.target_date || ''}
+                          onChange={(e) => handleFollowupChange(idx, 'target_date', e.target.value)}
+                          className="bg-background border border-border rounded-xl px-3 py-1.5 text-foreground outline-none focus:border-primary font-extrabold text-sm"
                         />
-                        <span>days</span>
                       </div>
                     </div>
 

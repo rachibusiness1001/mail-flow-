@@ -800,6 +800,17 @@ def run_followups_bg():
                             lead.status           = 'sent'
                             lead.next_followup_at = None
                         db.session.commit()
+                    else:
+                        lead.status = 'failed'
+                        lead.error_msg = error
+                        campaign.failed_count += 1
+                        db.session.commit()
+                        
+                    # Respect campaign delay between followups
+                    import random
+                    d_min = min(campaign.delay_min, campaign.delay_max)
+                    d_max = max(campaign.delay_min, campaign.delay_max)
+                    time.sleep(random.randint(d_min * 60, d_max * 60))
         except Exception as e:
             print(f'[followup_bg error] {e}')
         time.sleep(60)

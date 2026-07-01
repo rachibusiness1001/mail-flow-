@@ -2355,6 +2355,17 @@ auto_migrate()
 
 def auto_resume_campaigns():
     with app.app_context():
+        # Recover any stuck leads from unexpected crashes
+        try:
+            stuck_leads = Lead.query.filter_by(status='sending_followup').all()
+            for sl in stuck_leads:
+                sl.status = 'sent_followup_pending'
+            if stuck_leads:
+                db.session.commit()
+                print(f"[RECOVERY] Reverted {len(stuck_leads)} stuck leads to pending.")
+        except Exception as e:
+            print(f"[RECOVERY ERROR] {e}")
+
         campaigns = Campaign.query.filter_by(status='running').all()
         for c in campaigns:
             if not running_campaigns.get(c.id, False):

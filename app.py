@@ -825,7 +825,7 @@ def fetch_gmail_api_replies(acc):
         # Fetch ALL messages (read + unread) with pagination
         all_messages = []
         page_token = None
-        for _ in range(5):  # max 5 pages = 500 messages
+        for _ in range(15):  # max 15 pages = 1500 messages
             url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=100'
             if page_token:
                 url += f'&pageToken={page_token}'
@@ -903,7 +903,12 @@ def fetch_gmail_api_replies(acc):
                 body = msg_data.get('snippet', '')
 
             # ONLY fetch replies from campaign leads — skip random inbox emails
-            lead = Lead.query.filter_by(email=target_email, user_id=acc.user_id).first()
+            lead = None
+            if gmail_thread_id:
+                lead = Lead.query.filter_by(thread_id=gmail_thread_id, user_id=acc.user_id).first()
+                
+            if not lead:
+                lead = Lead.query.filter_by(email=target_email, user_id=acc.user_id).first()
             
             # Bounce Tracking (Local/Free)
             subj_lower = subject.lower()
@@ -912,7 +917,8 @@ def fetch_gmail_api_replies(acc):
                 match = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', body)
                 if match:
                     bounced_email = match.group(0).lower()
-                    lead = Lead.query.filter_by(email=bounced_email, user_id=acc.user_id).first()
+                    bounced_lead = Lead.query.filter_by(email=bounced_email, user_id=acc.user_id).first()
+                    if bounced_lead: lead = bounced_lead
                 if lead:
                     lead.status = 'failed'
                     lead.error_msg = 'Bounced'

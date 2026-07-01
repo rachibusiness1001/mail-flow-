@@ -144,7 +144,7 @@ def get_campaign(id):
             'subject': fu.subject,
             'body': fu.body,
             'delay': fu.wait_days,
-            'target_date': fu.target_date.isoformat() if fu.target_date else None
+            'target_date': fu.target_date.isoformat() if hasattr(fu.target_date, 'isoformat') else fu.target_date
         })
         
     # Calculate open rate and reply rate safely

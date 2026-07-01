@@ -2352,7 +2352,7 @@ def auto_migrate():
                 "ALTER TABLE inbox_reply ADD COLUMN tag_id INTEGER",
                 "ALTER TABLE inbox_reply ADD COLUMN msg_references TEXT DEFAULT ''",
                 "ALTER TABLE inbox_reply ADD COLUMN draft_body TEXT DEFAULT ''",
-                "ALTER TABLE inbox_reply ADD COLUMN snoozed_until DATETIME",
+                "ALTER TABLE inbox_reply ADD COLUMN snoozed_until TIMESTAMP",
                 
                 # InboxTag Table
                 "ALTER TABLE inbox_tag ADD COLUMN position INTEGER DEFAULT 0",
@@ -2361,7 +2361,7 @@ def auto_migrate():
                 "ALTER TABLE workspace ADD COLUMN force_pause BOOLEAN DEFAULT FALSE",
                 
                 # Calendar Followups migration
-                "ALTER TABLE follow_up ADD COLUMN target_date DATETIME",
+                "ALTER TABLE follow_up ADD COLUMN target_date TIMESTAMP",
                 
                 # Attachment Table fallback
                 "CREATE TABLE IF NOT EXISTS attachment (id INTEGER PRIMARY KEY AUTOINCREMENT, reply_id INTEGER, filename VARCHAR(255), filepath VARCHAR(500), mime_type VARCHAR(100), size INTEGER, FOREIGN KEY(reply_id) REFERENCES inbox_reply(id))"

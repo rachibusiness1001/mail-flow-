@@ -120,16 +120,15 @@ def create_campaign():
 @campaigns_bp.route('/<int:id>', methods=['GET'])
 @jwt_required()
 def get_campaign(id):
-    try:
-        from app import db, Campaign, get_active_workspace_id
-        user_id = int(get_jwt_identity())
-        active_ws_id = get_active_workspace_id(user_id)
-        c = _campaign_query_for_user(id, user_id, active_ws_id)
+    from app import db, Campaign, get_active_workspace_id
+    user_id = int(get_jwt_identity())
+    active_ws_id = get_active_workspace_id(user_id)
+    c = _campaign_query_for_user(id, user_id, active_ws_id)
+    
+    if not c:
+        return jsonify({'error': 'Campaign not found'}), 404
         
-        if not c:
-            return jsonify({'error': 'Campaign not found (Query returned None)'}), 404
-            
-        steps = [{
+    steps = [{
         'id': 0,
         'type': 'email',
         'subject': c.subject_a,
@@ -168,42 +167,38 @@ def get_campaign(id):
         Lead.next_followup_at <= datetime.utcnow()
     ).count()
         
-        return jsonify({
-            'id': c.id,
-            'name': c.name,
-            'status': c.status,
-            'sent': c.sent_count,
-            'sent_today': sent_today,
-            'failed': c.failed_count,
-            'total_leads': c.total_leads,
-            'pending': c.total_leads - c.sent_count - c.failed_count,
-            'followups_pending': followups_pending,
-            'followups_today': followups_today,
-            'opens': c.open_count,
-            'replies': c.reply_count,
-            'openRate': round(open_rate, 1),
-            'replyRate': round(reply_rate, 1),
-            'subject_a': c.subject_a,
-            'body_a': c.body_a,
-            'subject_b': c.subject_b,
-            'body_b': c.body_b,
-            'ab_enabled': c.ab_enabled,
-            'ab_split': c.ab_split,
-            'delay_min': c.delay_min,
-            'delay_max': c.delay_max,
-            'working_hours': c.working_hours,
-            'work_start': c.work_start,
-            'work_end': c.work_end,
-            'work_days': c.work_days,
-            'account_ids': c.account_ids,
-            'send_limit': c.send_limit,
-            'scheduled_at': c.scheduled_at.isoformat() if (c.scheduled_at and hasattr(c.scheduled_at, 'isoformat')) else c.scheduled_at,
-            'steps': steps
-        }), 200
-    except Exception as e:
-        import traceback
-        trace = traceback.format_exc()
-        return jsonify({'error': f"Backend crash: {str(e)}\n\nTraceback: {trace}"}), 500
+    return jsonify({
+        'id': c.id,
+        'name': c.name,
+        'status': c.status,
+        'sent': c.sent_count,
+        'sent_today': sent_today,
+        'failed': c.failed_count,
+        'total_leads': c.total_leads,
+        'pending': c.total_leads - c.sent_count - c.failed_count,
+        'followups_pending': followups_pending,
+        'followups_today': followups_today,
+        'opens': c.open_count,
+        'replies': c.reply_count,
+        'openRate': round(open_rate, 1),
+        'replyRate': round(reply_rate, 1),
+        'subject_a': c.subject_a,
+        'body_a': c.body_a,
+        'subject_b': c.subject_b,
+        'body_b': c.body_b,
+        'ab_enabled': c.ab_enabled,
+        'ab_split': c.ab_split,
+        'delay_min': c.delay_min,
+        'delay_max': c.delay_max,
+        'working_hours': c.working_hours,
+        'work_start': c.work_start,
+        'work_end': c.work_end,
+        'work_days': c.work_days,
+        'account_ids': c.account_ids,
+        'send_limit': c.send_limit,
+        'scheduled_at': c.scheduled_at.isoformat() if (c.scheduled_at and hasattr(c.scheduled_at, 'isoformat')) else c.scheduled_at,
+        'steps': steps
+    }), 200
 
 @campaigns_bp.route('/<int:id>', methods=['PUT'])
 @jwt_required()

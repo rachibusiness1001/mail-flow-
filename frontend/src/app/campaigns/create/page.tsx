@@ -110,10 +110,11 @@ export default function CampaignEditor() {
           
           // Map follow-up steps
           const steps = c.steps || [];
-          const followupsList = steps.filter((s: any) => s.delay > 0).map((s: any) => ({
+          const followupsList = steps.filter((s: any) => s.id !== 0).map((s: any) => ({
             subject: s.subject || "",
             body: s.body || "",
-            delay: s.delay || 2
+            delay: s.delay || 0,
+            target_date: s.target_date ? s.target_date.substring(0, 10) : ""
           }));
           setFollowups(followupsList);
         }).catch(err => console.error("Failed to load campaign for edit", err));

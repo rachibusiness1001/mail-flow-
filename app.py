@@ -946,15 +946,19 @@ def fetch_gmail_api_replies(acc):
 
             category = categorize_reply(body) if not is_sent else 'uncategorized'
             if lead and not is_sent:
-                lead.replied_at = datetime.utcnow()
-                lead.status = 'replied'
-                if lead.campaign_id:
-                    c = Campaign.query.get(lead.campaign_id)
-                    if c:
-                        c.reply_count += 1
-                        if lead.ab_variant == 'A': c.reply_a += 1
-                        elif lead.ab_variant == 'B': c.reply_b += 1
-                lead.next_followup_at = None
+                # Prevent followups in ANY campaign for this email by marking all matching leads as replied
+                all_leads = Lead.query.filter_by(email=lead.email, user_id=acc.user_id).all()
+                for l in all_leads:
+                    if l.status != 'replied':
+                        l.replied_at = datetime.utcnow()
+                        l.status = 'replied'
+                        if l.campaign_id:
+                            c = Campaign.query.get(l.campaign_id)
+                            if c:
+                                c.reply_count += 1
+                                if l.ab_variant == 'A': c.reply_a += 1
+                                elif l.ab_variant == 'B': c.reply_b += 1
+                    l.next_followup_at = None
 
             reply = InboxReply(
                 user_id=acc.user_id,

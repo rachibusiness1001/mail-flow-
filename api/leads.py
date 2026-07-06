@@ -89,14 +89,22 @@ def upload_leads():
         campaign.workspace_id = active_ws_id
         
     leads_created = 0
+    duplicate_count = 0
     for l_data in data['leads']:
         if not l_data.get('email'):
+            continue
+            
+        email_val = l_data['email'].strip().lower()
+        
+        # Check for duplicates across ALL campaigns for this user
+        if Lead.query.filter_by(email=email_val, user_id=user_id).first():
+            duplicate_count += 1
             continue
             
         new_lead = Lead(
             user_id=user_id,
             workspace_id=active_ws_id,
-            email=l_data['email'],
+            email=email_val,
             name=l_data.get('name', f"{l_data.get('first_name', '')} {l_data.get('last_name', '')}".strip()),
             company=l_data.get('company', ''),
             campaign_id=campaign.id,

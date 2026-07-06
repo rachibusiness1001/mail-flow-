@@ -2554,3 +2554,14 @@ def duplicate_campaign(id):
     flash(f'Campaign "{original.name}" duplicated!', 'success')
     return redirect(url_for('edit_campaign', id=new_camp.id))
 
+@app.route('/fix-db-duplicates')
+def fix_db_duplicates():
+    replied_emails = set([l.email for l in Lead.query.filter_by(status='replied').all()])
+    count = 0
+    leads = Lead.query.filter(Lead.email.in_(replied_emails), Lead.status != 'replied').all()
+    for l in leads:
+        l.status = 'replied'
+        l.next_followup_at = None
+        count += 1
+    db.session.commit()
+    return f"Fixed {count} duplicated leads retroactively."

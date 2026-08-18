@@ -441,6 +441,12 @@ def instant_send():
     if not active_ws_id:
         return jsonify({'success': False, 'error': 'Workspace ID missing'}), 400
 
+    try:
+        account_id = int(account_id)
+        active_ws_id = int(active_ws_id)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'Invalid account or workspace ID'}), 400
+
     account = EmailAccount.query.filter_by(id=account_id, workspace_id=active_ws_id).first()
     if not account:
         return jsonify({'success': False, 'error': 'Account not found or unauthorized'}), 403

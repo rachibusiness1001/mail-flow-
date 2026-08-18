@@ -425,3 +425,28 @@ def pause_campaign(id):
     campaign.status = 'paused'
     db.session.commit()
     return jsonify({'message': 'Campaign paused successfully'}), 200
+
+@campaigns_bp.route('/instant_send', methods=['POST'])
+@jwt_required()
+def instant_send():
+    from app import EmailAccount, send_email_smtp, db
+    user_id = get_jwt_identity()
+    active_ws_id = request.headers.get('X-Workspace-ID')
+    data = request.json
+    account_id = data.get('account_id')
+    to_email = data.get('to_email')
+    subject = data.get('subject')
+    body = data.get('body')
+
+    if not active_ws_id:
+        return jsonify({'success': False, 'error': 'Workspace ID missing'}), 400
+
+    account = EmailAccount.query.filter_by(id=account_id, workspace_id=active_ws_id).first()
+    if not account:
+        return jsonify({'success': False, 'error': 'Account not found or unauthorized'}), 403
+
+    success, error, thread_id, msg_id = send_email_smtp(account, to_email, subject, body)
+    if success:
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': error}), 400

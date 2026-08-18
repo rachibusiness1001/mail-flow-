@@ -13,7 +13,8 @@ import {
   Target,
   FolderOpen,
   MessageSquare,
-  Plus
+  Plus,
+  Zap
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ const navItems = [
   { name: "Campaigns", href: "/campaigns", icon: Megaphone },
   { name: "Inbox", href: "/inbox", icon: Inbox },
   { name: "Leads", href: "/leads", icon: Users },
+  { name: "Instant Sender", href: "/instant-sender", icon: Zap },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Files", href: "/files", icon: FolderOpen },
 ];

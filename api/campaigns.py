@@ -429,25 +429,25 @@ def pause_campaign(id):
 @campaigns_bp.route('/instant_send', methods=['POST'])
 @jwt_required()
 def instant_send():
-    from app import EmailAccount, send_email_smtp, db
-    user_id = get_jwt_identity()
-    active_ws_id = request.headers.get('X-Workspace-ID')
+    from app import EmailAccount, send_email_smtp, db, get_active_workspace_id
+    user_id = int(get_jwt_identity())
     data = request.json
     account_id = data.get('account_id')
     to_email = data.get('to_email')
     subject = data.get('subject')
     body = data.get('body')
 
+    # Use the same workspace resolution as other routes (falls back to default if header missing)
+    active_ws_id = get_active_workspace_id(user_id)
     if not active_ws_id:
-        return jsonify({'success': False, 'error': 'Workspace ID missing'}), 400
+        return jsonify({'success': False, 'error': 'No workspace found for user'}), 400
 
     try:
         account_id = int(account_id)
-        active_ws_id = int(active_ws_id)
     except (TypeError, ValueError):
-        return jsonify({'success': False, 'error': 'Invalid account or workspace ID'}), 400
+        return jsonify({'success': False, 'error': 'Invalid account ID'}), 400
 
-    account = EmailAccount.query.filter_by(id=account_id, workspace_id=active_ws_id).first()
+    account = EmailAccount.query.filter_by(id=account_id, user_id=user_id).first()
     if not account:
         return jsonify({'success': False, 'error': 'Account not found or unauthorized'}), 403
 

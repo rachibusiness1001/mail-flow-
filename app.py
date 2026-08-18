@@ -2565,3 +2565,29 @@ def fix_db_duplicates():
         count += 1
     db.session.commit()
     return f"Fixed {count} duplicated leads retroactively."
+
+@app.route('/instant_sender')
+def instant_sender():
+    if 'user_id' not in session: return redirect('/login')
+    wid = session.get('workspace_id')
+    accounts = EmailAccount.query.filter_by(workspace_id=wid).all()
+    return render_template('instant_sender.html', accounts=accounts)
+
+@app.route('/api/instant_send', methods=['POST'])
+def api_instant_send():
+    if 'user_id' not in session: return jsonify({'success': False, 'error': 'Unauthorized'})
+    data = request.json
+    account_id = data.get('account_id')
+    to_email = data.get('to_email')
+    subject = data.get('subject')
+    body = data.get('body')
+    
+    account = EmailAccount.query.get(account_id)
+    if not account or account.workspace_id != session.get('workspace_id'):
+        return jsonify({'success': False, 'error': 'Account not found or unauthorized'})
+        
+    success, error, thread_id, msg_id = send_email_smtp(account, to_email, subject, body)
+    if success:
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': error})

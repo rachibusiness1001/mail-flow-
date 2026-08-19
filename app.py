@@ -32,10 +32,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Fix for Render PostgreSQL SSL connection drops
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,      # Test connection before use, reconnect if dead
-    'pool_recycle': 300,        # Recycle connections every 5 minutes
-    'pool_timeout': 20,
-    'max_overflow': 5,
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
 }
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECRET_KEY'])

@@ -82,11 +82,19 @@ def toggle_warmup(id):
 @jwt_required()
 def delete_account(id):
     uid = int(get_jwt_identity())
-    from app import db, EmailAccount, get_active_workspace_id
+    from app import db, EmailAccount, Lead, InboxReply, get_active_workspace_id
     active_ws_id = get_active_workspace_id(uid)
     acc = EmailAccount.query.filter_by(id=id, user_id=uid, workspace_id=active_ws_id).first_or_404()
-    db.session.delete(acc)
-    db.session.commit()
+    
+    try:
+        # Remove foreign key references before deleting
+        Lead.query.filter_by(account_id=acc.id).update({'account_id': None})
+        InboxReply.query.filter_by(account_id=acc.id).update({'account_id': None})
+        db.session.delete(acc)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
     
     return jsonify({'success': True}), 200
 

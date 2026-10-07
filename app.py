@@ -1,4 +1,8 @@
 import sys
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
 if __name__ == '__main__':
     sys.modules['app'] = sys.modules['__main__']
 
@@ -36,6 +40,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300,
+    'connect_args': {'connect_timeout': 10}
 }
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECRET_KEY'])
@@ -2396,11 +2401,8 @@ def auto_migrate():
         except Exception as e:
             print(f'[auto_migrate error] {e}')
 
-auto_migrate()
-
 def auto_resume_campaigns():
     with app.app_context():
-        # Recover any stuck leads from unexpected crashes
         try:
             stuck_leads = Lead.query.filter_by(status='sending_followup').all()
             for sl in stuck_leads:
@@ -2418,12 +2420,22 @@ def auto_resume_campaigns():
                 running_campaigns[c.id] = True
                 threading.Thread(target=run_campaign, args=(c.id, c.user_id), daemon=True).start()
 
-# Start background threads globally so they run in Gunicorn/production
-import os
-if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+def _start_bg_workers():
+    time.sleep(1)
+    try:
+        auto_migrate()
+    except Exception as e:
+        print(f"[MIGRATE ERROR] {e}")
+    try:
+        auto_resume_campaigns()
+    except Exception as e:
+        print(f"[RESUME ERROR] {e}")
     threading.Thread(target=run_followups_bg, daemon=True).start()
     threading.Thread(target=fetch_replies_bg, daemon=True).start()
-    auto_resume_campaigns()
+
+import os
+if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    threading.Thread(target=_start_bg_workers, daemon=True).start()
 
 if __name__ == '__main__':
     with app.app_context():
